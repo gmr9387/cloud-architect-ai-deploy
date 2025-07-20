@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,11 +31,34 @@ const statusConfig = {
   success: { color: 'status-success', label: 'Live', icon: Globe },
   failed: { color: 'status-failed', label: 'Failed', icon: TrendingUp },
   pending: { color: 'status-pending', label: 'Pending', icon: Clock }
-};
+} as const;
 
-export const ProjectCard = ({ project }: ProjectCardProps) => {
-  const status = statusConfig[project.status];
-  const StatusIcon = status.icon;
+export const ProjectCard = memo(({ project }: ProjectCardProps) => {
+  const statusInfo = useMemo(() => {
+    const status = statusConfig[project.status];
+    return {
+      ...status,
+      StatusIcon: status.icon
+    };
+  }, [project.status]);
+
+  const aiOptimizationSection = useMemo(() => {
+    if (!project.aiOptimizations) return null;
+    
+    return (
+      <div className="flex items-center justify-between p-2 bg-ai-primary/5 rounded-lg border border-ai-primary/10">
+        <div className="flex items-center text-sm">
+          <Zap className="w-4 h-4 mr-2 text-ai-primary" />
+          <span className="text-ai-primary font-medium">AI Optimizations Applied</span>
+        </div>
+        <Badge variant="outline" className="bg-ai-primary/10 text-ai-primary border-ai-primary/20">
+          +{project.aiOptimizations}%
+        </Badge>
+      </div>
+    );
+  }, [project.aiOptimizations]);
+
+  const { StatusIcon } = statusInfo;
 
   return (
     <Card className="group hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 hover:border-primary/20">
@@ -43,10 +67,10 @@ export const ProjectCard = ({ project }: ProjectCardProps) => {
           <CardTitle className="text-lg font-semibold">{project.name}</CardTitle>
           <Badge 
             variant="outline" 
-            className={`border-${status.color} text-${status.color} bg-${status.color}/10`}
+            className={`border-${statusInfo.color} text-${statusInfo.color} bg-${statusInfo.color}/10`}
           >
             <StatusIcon className="w-3 h-3 mr-1" />
-            {status.label}
+            {statusInfo.label}
           </Badge>
         </div>
         <div className="flex items-center text-sm text-muted-foreground space-x-4">
@@ -84,17 +108,7 @@ export const ProjectCard = ({ project }: ProjectCardProps) => {
           </div>
         </div>
 
-        {project.aiOptimizations && (
-          <div className="flex items-center justify-between p-2 bg-ai-primary/5 rounded-lg border border-ai-primary/10">
-            <div className="flex items-center text-sm">
-              <Zap className="w-4 h-4 mr-2 text-ai-primary" />
-              <span className="text-ai-primary font-medium">AI Optimizations Applied</span>
-            </div>
-            <Badge variant="outline" className="bg-ai-primary/10 text-ai-primary border-ai-primary/20">
-              +{project.aiOptimizations}%
-            </Badge>
-          </div>
-        )}
+        {aiOptimizationSection}
 
         <div className="flex space-x-2 pt-2">
           <Button variant="outline" size="sm" className="flex-1">
@@ -107,4 +121,6 @@ export const ProjectCard = ({ project }: ProjectCardProps) => {
       </CardContent>
     </Card>
   );
-};
+});
+
+ProjectCard.displayName = 'ProjectCard';
