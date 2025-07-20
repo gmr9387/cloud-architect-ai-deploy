@@ -264,6 +264,8 @@ class WebSocketManager {
   }
 }
 
+import { useState, useEffect, useCallback, useRef } from 'react';
+
 // React hook for WebSocket management
 export function useWebSocket(config: WebSocketConfig) {
   const wsManager = useRef<WebSocketManager | null>(null);

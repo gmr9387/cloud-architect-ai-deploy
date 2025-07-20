@@ -17,7 +17,7 @@ import {
   Mic,
   MicOff,
   VideoOff,
-  Screen,
+  Monitor,
   Edit3,
   Send,
   Clock,
@@ -412,15 +412,15 @@ export const RealTimeCollaboration = memo(() => {
                 {isVideoEnabled ? <Video className="w-4 h-4 mr-1" /> : <VideoOff className="w-4 h-4 mr-1" />}
                 Video
               </Button>
-              <Button
-                variant={isScreenSharing ? "default" : "outline"}
-                size="sm"
-                onClick={() => setIsScreenSharing(!isScreenSharing)}
-                className="justify-start col-span-2"
-              >
-                <Screen className="w-4 h-4 mr-1" />
-                {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
-              </Button>
+                              <Button
+                  variant={isScreenSharing ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setIsScreenSharing(!isScreenSharing)}
+                  className="justify-start col-span-2"
+                >
+                  <Monitor className="w-4 h-4 mr-1" />
+                  {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+                </Button>
             </div>
           </div>
         </CardContent>

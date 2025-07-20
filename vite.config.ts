@@ -121,7 +121,5 @@ export default defineConfig(({ mode }) => ({
   esbuild: {
     // Remove console logs in production
     drop: mode === 'production' ? ['console', 'debugger'] : [],
-    // Enable JSX optimization
-    jsxInject: `import React from 'react'`,
   },
 }));

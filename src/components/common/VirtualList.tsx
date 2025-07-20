@@ -1,4 +1,4 @@
-import { memo, ReactNode, CSSProperties } from 'react';
+import { memo, ReactNode, CSSProperties, useState, useCallback } from 'react';
 import { useVirtualScroll, useVirtualScrollElement } from '@/hooks/useVirtualScroll';
 
 interface VirtualListProps<T> {
