@@ -1,4 +1,4 @@
-import { memo, lazy, Suspense, useMemo, useState } from "react";
+import { memo, lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { Button } from "@/components/ui/button";
@@ -45,47 +45,32 @@ const PremiumSkeleton = () => (
   </div>
 );
 
-// Mock data for demonstration - moved outside component to prevent re-creation
-const mockProjects = [
-  {
-    id: "1",
-    name: "my-portfolio",
-    status: "success" as const,
-    lastDeploy: "2h ago",
-    domain: "portfolio.yourdomain.com",
-    branch: "main",
-    buildTime: "1m 23s",
-    visitors: "2.1k",
-    aiOptimizations: 28
-  },
-  {
-    id: "2", 
-    name: "ecommerce-app",
-    status: "building" as const,
-    lastDeploy: "5m ago",
-    domain: "shop.yourdomain.com",
-    branch: "feature/checkout",
-    buildTime: "2m 15s",
-    visitors: "8.5k",
-    aiOptimizations: 35
-  },
-  {
-    id: "3",
-    name: "docs-site",
-    status: "success" as const,
-    lastDeploy: "1d ago",
-    domain: "docs.yourdomain.com", 
-    branch: "main",
-    buildTime: "45s",
-    visitors: "1.2k"
-  }
-];
+// Project interface
+interface Project {
+  id: string;
+  name: string;
+  status: 'building' | 'success' | 'failed' | 'pending';
+  lastDeploy: string;
+  domain: string;
+  branch: string;
+  buildTime: string;
+  visitors: string;
+  aiOptimizations?: number;
+}
 
-// Quick stats data - memoized to prevent re-renders
-const quickStatsData = [
+// Stats interface
+interface DashboardStats {
+  activeProjects: number;
+  monthlyDeploys: number;
+  aiOptimizations: number;
+  securityScore: number;
+}
+
+// Quick stats data structure
+const getQuickStatsData = (stats: DashboardStats) => [
   {
     title: "Active Projects",
-    value: "12",
+    value: stats.activeProjects.toString(),
     color: "status-success",
     icon: GitBranch,
     gradient: "from-status-success/10 to-status-success/5",
@@ -93,7 +78,7 @@ const quickStatsData = [
   },
   {
     title: "Monthly Deploys", 
-    value: "247",
+    value: stats.monthlyDeploys.toString(),
     color: "primary",
     icon: TrendingUp,
     gradient: "from-primary/10 to-primary/5",
@@ -101,7 +86,7 @@ const quickStatsData = [
   },
   {
     title: "AI Optimizations",
-    value: "94", 
+    value: stats.aiOptimizations.toString(), 
     color: "ai-primary",
     icon: Zap,
     gradient: "from-ai-primary/10 to-ai-secondary/10",
@@ -110,7 +95,7 @@ const quickStatsData = [
   },
   {
     title: "Security Score",
-    value: "98/100",
+    value: `${stats.securityScore}/100`,
     color: "green-600",
     icon: Shield,
     gradient: "from-green-100/50 to-green-50",
@@ -120,7 +105,9 @@ const quickStatsData = [
 ];
 
 // Memoized QuickStats component
-const QuickStats = memo(() => {
+const QuickStats = memo(({ stats }: { stats: DashboardStats }) => {
+  const quickStatsData = useMemo(() => getQuickStatsData(stats), [stats]);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
       {quickStatsData.map((stat, index) => {
@@ -153,17 +140,48 @@ const QuickStats = memo(() => {
 QuickStats.displayName = 'QuickStats';
 
 // Memoized ProjectList component
-const ProjectList = memo(() => {
-  const projectCards = useMemo(() => 
-    mockProjects.map((project) => (
-      <ProjectCard key={project.id} project={project} />
-    )), []);
+const ProjectList = memo(({ projects, isLoading }: { projects: Project[]; isLoading: boolean }) => {
+  if (isLoading) {
+    return (
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Recent Projects</h2>
+        <div className="grid gap-4">
+          {[...Array(3)].map((_, i) => (
+            <ComponentSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Recent Projects</h2>
+        <Card className="border-dashed border-2 border-muted-foreground/25">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <GitBranch className="w-12 h-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
+            <p className="text-muted-foreground text-center max-w-sm mb-4">
+              Get started by creating your first project. Deploy any framework in seconds.
+            </p>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Project
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Recent Projects</h2>
       <div className="grid gap-4">
-        {projectCards}
+        {projects.map((project) => (
+          <ProjectCard key={project.id} project={project} />
+        ))}
       </div>
     </div>
   );
@@ -171,8 +189,63 @@ const ProjectList = memo(() => {
 
 ProjectList.displayName = 'ProjectList';
 
+// API functions (to be implemented with real backend)
+const fetchProjects = async (): Promise<Project[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/projects');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
+
+const fetchDashboardStats = async (): Promise<DashboardStats> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/dashboard/stats');
+  // return response.json();
+  
+  // For now, return default stats - real data will come from backend
+  return {
+    activeProjects: 0,
+    monthlyDeploys: 0,
+    aiOptimizations: 0,
+    securityScore: 0
+  };
+};
+
 const Index = memo(() => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
+    activeProjects: 0,
+    monthlyDeploys: 0,
+    aiOptimizations: 0,
+    securityScore: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [projectsData, statsData] = await Promise.all([
+          fetchProjects(),
+          fetchDashboardStats()
+        ]);
+        
+        setProjects(projectsData);
+        setStats(statsData);
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+        // Handle error state - could show error message to user
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -201,7 +274,7 @@ const Index = memo(() => {
           </div>
           
           {/* Quick Stats */}
-          <QuickStats />
+          <QuickStats stats={stats} />
         </div>
 
         {/* Premium Features Navigation */}
@@ -233,7 +306,7 @@ const Index = memo(() => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column - Projects */}
               <div className="lg:col-span-2 space-y-6">
-                <ProjectList />
+                <ProjectList projects={projects} isLoading={isLoading} />
                 
                 <Suspense fallback={<ComponentSkeleton />}>
                   <DeploymentPipeline />

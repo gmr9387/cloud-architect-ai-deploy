@@ -19,7 +19,8 @@ import {
   ArrowRight,
   Play,
   Pause,
-  Settings
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 
 interface OptimizationSuggestion {
@@ -56,86 +57,6 @@ interface AIAnalysisResult {
   };
 }
 
-const mockAIAnalysis: AIAnalysisResult = {
-  score: 87,
-  suggestions: [
-    {
-      id: '1',
-      type: 'performance',
-      title: 'Implement Dynamic Imports for Route Components',
-      description: 'Your application could benefit from code splitting using dynamic imports. This will reduce initial bundle size by ~40%.',
-      impact: 'high',
-      effort: 'low',
-      estimatedImprovement: '40% smaller bundle, 1.2s faster load time',
-      status: 'pending',
-      autoApplicable: true,
-      codeChanges: [
-        {
-          file: 'src/App.tsx',
-          before: 'import Dashboard from "./pages/Dashboard"',
-          after: 'const Dashboard = lazy(() => import("./pages/Dashboard"))'
-        }
-      ]
-    },
-    {
-      id: '2',
-      type: 'performance',
-      title: 'Optimize Image Loading with WebP Format',
-      description: 'Convert PNG/JPEG images to WebP format for 25-35% size reduction while maintaining quality.',
-      impact: 'medium',
-      effort: 'low',
-      estimatedImprovement: '30% smaller images, 0.5s faster load',
-      status: 'pending',
-      autoApplicable: true
-    },
-    {
-      id: '3',
-      type: 'security',
-      title: 'Update Dependencies with Vulnerabilities',
-      description: '3 packages have known security vulnerabilities. Updating will patch potential security risks.',
-      impact: 'high',
-      effort: 'low',
-      estimatedImprovement: 'Eliminate 3 critical vulnerabilities',
-      status: 'pending',
-      autoApplicable: true
-    },
-    {
-      id: '4',
-      type: 'bundle',
-      title: 'Remove Unused CSS and JavaScript',
-      description: 'Detected 180KB of unused code across 12 files. Tree shaking optimization can remove this.',
-      impact: 'medium',
-      effort: 'low',
-      estimatedImprovement: '180KB bundle reduction',
-      status: 'pending',
-      autoApplicable: true
-    },
-    {
-      id: '5',
-      type: 'accessibility',
-      title: 'Add ARIA Labels and Semantic HTML',
-      description: 'Improve accessibility score by adding proper ARIA labels and semantic HTML elements.',
-      impact: 'medium',
-      effort: 'medium',
-      estimatedImprovement: '+15 accessibility score',
-      status: 'pending',
-      autoApplicable: false
-    }
-  ],
-  metrics: {
-    bundleSize: 1200,
-    loadTime: 2.8,
-    securityIssues: 3,
-    accessibilityScore: 78,
-    seoScore: 92
-  },
-  predictions: {
-    performanceGain: 65,
-    costSavings: 2400,
-    userExperienceImprovement: 45
-  }
-};
-
 const typeConfig = {
   performance: { icon: Zap, color: 'text-blue-500', bg: 'bg-blue-50', label: 'Performance' },
   security: { icon: Shield, color: 'text-red-500', bg: 'bg-red-50', label: 'Security' },
@@ -150,19 +71,61 @@ const impactConfig = {
   low: { color: 'text-green-600', bg: 'bg-green-100', label: 'Low Impact' }
 };
 
+// API functions for AI analysis
+const performAIAnalysis = async (): Promise<AIAnalysisResult> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/ai/analyze');
+  // return response.json();
+  
+  // For now, return empty analysis - real data will come from backend
+  return {
+    score: 0,
+    suggestions: [],
+    metrics: {
+      bundleSize: 0,
+      loadTime: 0,
+      securityIssues: 0,
+      accessibilityScore: 0,
+      seoScore: 0
+    },
+    predictions: {
+      performanceGain: 0,
+      costSavings: 0,
+      userExperienceImprovement: 0
+    }
+  };
+};
+
+const applyOptimizationAPI = async (suggestionId: string): Promise<void> => {
+  // TODO: Replace with actual API call
+  // Example: await fetch(`/api/ai/apply-optimization/${suggestionId}`, { method: 'POST' });
+  
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+};
+
 export const AIOptimizationEngine = memo(() => {
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(true);
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
+  const [hasPerformedInitialAnalysis, setHasPerformedInitialAnalysis] = useState(false);
 
-  // Simulate AI analysis
+  // Run AI analysis
   const runAnalysis = useCallback(async () => {
     setIsAnalyzing(true);
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    setAnalysis(mockAIAnalysis);
-    setIsAnalyzing(false);
+    try {
+      // Simulate analysis delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const result = await performAIAnalysis();
+      setAnalysis(result);
+      setHasPerformedInitialAnalysis(true);
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+      // Handle error state - could show error message to user
+    } finally {
+      setIsAnalyzing(false);
+    }
   }, []);
 
   // Auto-apply optimization
@@ -180,16 +143,26 @@ export const AIOptimizationEngine = memo(() => {
       )
     }));
 
-    // Simulate applying optimization
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Update status to completed
-    setAnalysis(prev => ({
-      ...prev!,
-      suggestions: prev!.suggestions.map(s => 
-        s.id === suggestionId ? { ...s, status: 'completed' } : s
-      )
-    }));
+    try {
+      await applyOptimizationAPI(suggestionId);
+      
+      // Update status to completed
+      setAnalysis(prev => ({
+        ...prev!,
+        suggestions: prev!.suggestions.map(s => 
+          s.id === suggestionId ? { ...s, status: 'completed' } : s
+        )
+      }));
+    } catch (error) {
+      console.error('Failed to apply optimization:', error);
+      // Revert status on error
+      setAnalysis(prev => ({
+        ...prev!,
+        suggestions: prev!.suggestions.map(s => 
+          s.id === suggestionId ? { ...s, status: 'pending' } : s
+        )
+      }));
+    }
   }, [analysis]);
 
   // Auto-apply all applicable optimizations
@@ -205,11 +178,15 @@ export const AIOptimizationEngine = memo(() => {
     }
   }, [analysis, applyOptimization]);
 
+  // Initial analysis on component mount
   useEffect(() => {
-    runAnalysis();
-  }, [runAnalysis]);
+    if (!hasPerformedInitialAnalysis) {
+      runAnalysis();
+    }
+  }, [runAnalysis, hasPerformedInitialAnalysis]);
 
-  if (isAnalyzing) {
+  // Loading state for initial analysis
+  if (isAnalyzing && !hasPerformedInitialAnalysis) {
     return (
       <Card className="border-2 border-dashed border-ai-primary/30">
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -222,13 +199,43 @@ export const AIOptimizationEngine = memo(() => {
             Our AI is examining your code, dependencies, and performance metrics to identify optimization opportunities.
           </p>
           <Progress value={65} className="w-64 mt-4" />
-          <p className="text-xs text-muted-foreground mt-2">Analyzing bundle composition...</p>
+          <p className="text-xs text-muted-foreground mt-2">Analyzing application structure...</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (!analysis) return null;
+  // Empty state when no analysis data
+  if (!analysis || (analysis.suggestions.length === 0 && analysis.score === 0)) {
+    return (
+      <Card className="border-2 border-dashed border-muted-foreground/25">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <Brain className="w-16 h-16 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Ready for AI Analysis</h3>
+          <p className="text-muted-foreground text-center max-w-sm mb-6">
+            Run an AI analysis to get personalized optimization recommendations for your application.
+          </p>
+          <Button
+            onClick={runAnalysis}
+            disabled={isAnalyzing}
+            className="bg-gradient-to-r from-ai-primary to-ai-secondary"
+          >
+            {isAnalyzing ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Start AI Analysis
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const pendingSuggestions = analysis.suggestions.filter(s => s.status === 'pending');
   const completedSuggestions = analysis.suggestions.filter(s => s.status === 'completed');
@@ -255,9 +262,18 @@ export const AIOptimizationEngine = memo(() => {
               <Badge variant="outline" className="bg-ai-primary/10 text-ai-primary">
                 Score: {analysis.score}/100
               </Badge>
-              <Button onClick={runAnalysis} variant="outline" size="sm">
-                <Sparkles className="w-4 h-4 mr-1" />
-                Re-analyze
+              <Button onClick={runAnalysis} variant="outline" size="sm" disabled={isAnalyzing}>
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    Re-analyze
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -291,93 +307,115 @@ export const AIOptimizationEngine = memo(() => {
         </TabsList>
 
         <TabsContent value="suggestions" className="space-y-4">
-          {pendingSuggestions.map(suggestion => {
-            const typeInfo = typeConfig[suggestion.type];
-            const impactInfo = impactConfig[suggestion.impact];
-            const TypeIcon = typeInfo.icon;
+          {pendingSuggestions.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">All Optimizations Complete!</h3>
+                <p className="text-muted-foreground text-center">
+                  Your application is fully optimized. Run a new analysis to check for additional improvements.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            pendingSuggestions.map(suggestion => {
+              const typeInfo = typeConfig[suggestion.type];
+              const impactInfo = impactConfig[suggestion.impact];
+              const TypeIcon = typeInfo.icon;
 
-            return (
-              <Card key={suggestion.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex space-x-4 flex-1">
-                      <div className={`p-2 rounded-lg ${typeInfo.bg}`}>
-                        <TypeIcon className={`w-5 h-5 ${typeInfo.color}`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h4 className="font-semibold">{suggestion.title}</h4>
-                          <Badge variant="outline" className={`${impactInfo.bg} ${impactInfo.color} border-current`}>
-                            {impactInfo.label}
-                          </Badge>
-                          {suggestion.autoApplicable && (
-                            <Badge variant="secondary">
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              Auto-fix
+              return (
+                <Card key={suggestion.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex space-x-4 flex-1">
+                        <div className={`p-2 rounded-lg ${typeInfo.bg}`}>
+                          <TypeIcon className={`w-5 h-5 ${typeInfo.color}`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold">{suggestion.title}</h4>
+                            <Badge variant="outline" className={`${impactInfo.bg} ${impactInfo.color} border-current`}>
+                              {impactInfo.label}
                             </Badge>
-                          )}
-                        </div>
-                        <p className="text-muted-foreground mb-3">{suggestion.description}</p>
-                        <div className="flex items-center space-x-4 text-sm">
-                          <span className="text-green-600 font-medium">
-                            ✨ {suggestion.estimatedImprovement}
-                          </span>
-                          <span className="text-muted-foreground">
-                            Effort: {suggestion.effort}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2 ml-4">
-                      {suggestion.autoApplicable ? (
-                        <Button
-                          onClick={() => applyOptimization(suggestion.id)}
-                          size="sm"
-                          className="bg-ai-primary hover:bg-ai-primary/90"
-                        >
-                          <Zap className="w-4 h-4 mr-1" />
-                          Auto-Apply
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => setSelectedSuggestion(suggestion.id)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          View Details
-                          <ArrowRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Code Changes Preview */}
-                  {suggestion.codeChanges && selectedSuggestion === suggestion.id && (
-                    <div className="mt-4 p-4 bg-muted/30 rounded-lg">
-                      <h5 className="font-medium mb-2">Proposed Changes:</h5>
-                      {suggestion.codeChanges.map((change, index) => (
-                        <div key={index} className="mb-3">
-                          <p className="text-sm font-medium text-muted-foreground mb-1">
-                            {change.file}
-                          </p>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="bg-red-50 p-2 rounded border">
-                              <p className="text-red-600 font-medium mb-1">Before:</p>
-                              <code className="text-red-800">{change.before}</code>
-                            </div>
-                            <div className="bg-green-50 p-2 rounded border">
-                              <p className="text-green-600 font-medium mb-1">After:</p>
-                              <code className="text-green-800">{change.after}</code>
-                            </div>
+                            {suggestion.autoApplicable && (
+                              <Badge variant="secondary">
+                                <Sparkles className="w-3 h-3 mr-1" />
+                                Auto-fix
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-muted-foreground mb-3">{suggestion.description}</p>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span className="text-green-600 font-medium">
+                              ✨ {suggestion.estimatedImprovement}
+                            </span>
+                            <span className="text-muted-foreground">
+                              Effort: {suggestion.effort}
+                            </span>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        {suggestion.autoApplicable ? (
+                          <Button
+                            onClick={() => applyOptimization(suggestion.id)}
+                            size="sm"
+                            className="bg-ai-primary hover:bg-ai-primary/90"
+                            disabled={suggestion.status === 'in-progress'}
+                          >
+                            {suggestion.status === 'in-progress' ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                                Applying...
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="w-4 h-4 mr-1" />
+                                Auto-Apply
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => setSelectedSuggestion(suggestion.id)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            View Details
+                            <ArrowRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    
+                    {/* Code Changes Preview */}
+                    {suggestion.codeChanges && selectedSuggestion === suggestion.id && (
+                      <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+                        <h5 className="font-medium mb-2">Proposed Changes:</h5>
+                        {suggestion.codeChanges.map((change, index) => (
+                          <div key={index} className="mb-3">
+                            <p className="text-sm font-medium text-muted-foreground mb-1">
+                              {change.file}
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-red-50 p-2 rounded border">
+                                <p className="text-red-600 font-medium mb-1">Before:</p>
+                                <code className="text-red-800">{change.before}</code>
+                              </div>
+                              <div className="bg-green-50 p-2 rounded border">
+                                <p className="text-green-600 font-medium mb-1">After:</p>
+                                <code className="text-green-800">{change.after}</code>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
 
           {completedSuggestions.length > 0 && (
             <div className="mt-8">

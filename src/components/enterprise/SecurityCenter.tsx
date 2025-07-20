@@ -1,11 +1,10 @@
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
 import { 
   Shield, 
   Lock, 
@@ -27,37 +26,44 @@ import {
   Terminal
 } from 'lucide-react';
 
-interface SecurityIssue {
+interface SecurityVulnerability {
   id: string;
-  type: 'vulnerability' | 'compliance' | 'access' | 'configuration';
   severity: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   description: string;
-  affectedAssets: string[];
+  package: string;
+  version: string;
+  fixedIn?: string;
   cve?: string;
-  cvssScore?: number;
-  status: 'open' | 'in-progress' | 'resolved' | 'dismissed';
+  status: 'open' | 'ignored' | 'fixed';
   detectedAt: Date;
-  resolvedAt?: Date;
-  recommendation: string;
 }
 
-interface ComplianceFramework {
+interface ComplianceCheck {
   id: string;
-  name: string;
-  version: string;
-  compliance: number;
-  requirements: {
-    id: string;
-    title: string;
-    status: 'compliant' | 'partial' | 'non-compliant';
-    evidence: string[];
-  }[];
-  lastAssessment: Date;
+  framework: 'SOC2' | 'GDPR' | 'HIPAA' | 'PCI-DSS' | 'ISO27001';
+  requirement: string;
+  status: 'compliant' | 'non-compliant' | 'pending';
+  description: string;
+  lastChecked: Date;
+  evidence?: string[];
+}
+
+interface AccessEvent {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  resource: string;
+  timestamp: Date;
+  ipAddress: string;
+  userAgent: string;
+  result: 'success' | 'failure' | 'blocked';
+  riskLevel: 'low' | 'medium' | 'high';
 }
 
 interface SecurityMetrics {
-  securityScore: number;
+  overallScore: number;
   vulnerabilities: {
     critical: number;
     high: number;
@@ -65,275 +71,261 @@ interface SecurityMetrics {
     low: number;
   };
   compliance: {
-    overall: number;
-    frameworks: number;
-  };
-  incidents: {
+    compliant: number;
     total: number;
-    resolved: number;
-    mttr: number; // Mean Time To Resolution in hours
+    frameworks: string[];
   };
-  accessReviews: {
-    pending: number;
-    overdue: number;
+  accessAttempts: {
+    total: number;
+    blocked: number;
+    suspicious: number;
   };
+  lastScan: Date;
 }
 
-const mockSecurityIssues: SecurityIssue[] = [
-  {
-    id: '1',
-    type: 'vulnerability',
-    severity: 'critical',
-    title: 'Remote Code Execution in Node.js',
-    description: 'CVE-2024-12345: Critical vulnerability in Node.js version 18.17.0 allows remote code execution.',
-    affectedAssets: ['my-portfolio', 'ecommerce-app'],
-    cve: 'CVE-2024-12345',
-    cvssScore: 9.8,
-    status: 'open',
-    detectedAt: new Date(Date.now() - 86400000),
-    recommendation: 'Upgrade Node.js to version 18.19.0 or later immediately.'
-  },
-  {
-    id: '2',
-    type: 'compliance',
-    severity: 'high',
-    title: 'Missing Audit Logs',
-    description: 'GDPR Article 30 requires maintaining records of processing activities.',
-    affectedAssets: ['user-auth-service'],
-    status: 'in-progress',
-    detectedAt: new Date(Date.now() - 172800000),
-    recommendation: 'Implement comprehensive audit logging for all user data processing activities.'
-  },
-  {
-    id: '3',
-    type: 'access',
-    severity: 'medium',
-    title: 'Excessive Admin Privileges',
-    description: '3 users have unnecessary admin access to production environments.',
-    affectedAssets: ['production-cluster'],
-    status: 'open',
-    detectedAt: new Date(Date.now() - 259200000),
-    recommendation: 'Review and revoke unnecessary admin privileges following principle of least privilege.'
-  }
-];
+// API functions for security features
+const fetchSecurityMetrics = async (): Promise<SecurityMetrics> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/security/metrics');
+  // return response.json();
+  
+  // For now, return default metrics - real data will come from backend
+  return {
+    overallScore: 0,
+    vulnerabilities: {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0
+    },
+    compliance: {
+      compliant: 0,
+      total: 0,
+      frameworks: []
+    },
+    accessAttempts: {
+      total: 0,
+      blocked: 0,
+      suspicious: 0
+    },
+    lastScan: new Date()
+  };
+};
 
-const mockComplianceFrameworks: ComplianceFramework[] = [
-  {
-    id: 'soc2',
-    name: 'SOC 2 Type II',
-    version: '2017',
-    compliance: 94,
-    lastAssessment: new Date(Date.now() - 2592000000),
-    requirements: [
-      {
-        id: 'cc1',
-        title: 'Control Environment',
-        status: 'compliant',
-        evidence: ['Policy documents', 'Training records']
-      },
-      {
-        id: 'cc2',
-        title: 'Communication and Information',
-        status: 'partial',
-        evidence: ['Communication logs']
-      }
-    ]
-  },
-  {
-    id: 'gdpr',
-    name: 'GDPR',
-    version: '2018',
-    compliance: 87,
-    lastAssessment: new Date(Date.now() - 1296000000),
-    requirements: [
-      {
-        id: 'art30',
-        title: 'Records of Processing',
-        status: 'non-compliant',
-        evidence: []
-      },
-      {
-        id: 'art32',
-        title: 'Security of Processing',
-        status: 'compliant',
-        evidence: ['Encryption certificates', 'Access controls']
-      }
-    ]
-  }
-];
+const fetchVulnerabilities = async (): Promise<SecurityVulnerability[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/security/vulnerabilities');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
 
-const mockMetrics: SecurityMetrics = {
-  securityScore: 85,
-  vulnerabilities: {
-    critical: 1,
-    high: 3,
-    medium: 8,
-    low: 15
-  },
-  compliance: {
-    overall: 91,
-    frameworks: 2
-  },
-  incidents: {
-    total: 12,
-    resolved: 10,
-    mttr: 4.2
-  },
-  accessReviews: {
-    pending: 5,
-    overdue: 2
-  }
+const fetchComplianceChecks = async (): Promise<ComplianceCheck[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/security/compliance');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
+
+const fetchAccessEvents = async (): Promise<AccessEvent[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/security/access-events');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
+
+const runSecurityScan = async (): Promise<void> => {
+  // TODO: Replace with actual API call
+  // Example: await fetch('/api/security/scan', { method: 'POST' });
+  
+  // Simulate scan delay
+  await new Promise(resolve => setTimeout(resolve, 5000));
+};
+
+const generateComplianceReport = async (framework: string): Promise<void> => {
+  // TODO: Replace with actual API call
+  // Example: await fetch(`/api/security/compliance/report/${framework}`, { method: 'POST' });
+  
+  // Simulate report generation delay
+  await new Promise(resolve => setTimeout(resolve, 3000));
 };
 
 const severityConfig = {
-  critical: { color: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200' },
-  high: { color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
-  medium: { color: 'text-yellow-600', bg: 'bg-yellow-100', border: 'border-yellow-200' },
-  low: { color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' }
+  critical: { color: 'text-red-600', bg: 'bg-red-100', label: 'Critical', priority: 4 },
+  high: { color: 'text-orange-600', bg: 'bg-orange-100', label: 'High', priority: 3 },
+  medium: { color: 'text-yellow-600', bg: 'bg-yellow-100', label: 'Medium', priority: 2 },
+  low: { color: 'text-blue-600', bg: 'bg-blue-100', label: 'Low', priority: 1 }
 };
 
-const typeConfig = {
-  vulnerability: { icon: AlertTriangle, color: 'text-red-500', label: 'Vulnerability' },
-  compliance: { icon: FileText, color: 'text-blue-500', label: 'Compliance' },
-  access: { icon: UserCheck, color: 'text-purple-500', label: 'Access Control' },
-  configuration: { icon: Settings, color: 'text-orange-500', label: 'Configuration' }
+const complianceConfig = {
+  'SOC2': { icon: Shield, color: 'text-blue-600' },
+  'GDPR': { icon: Globe, color: 'text-green-600' },
+  'HIPAA': { icon: FileText, color: 'text-purple-600' },
+  'PCI-DSS': { icon: Lock, color: 'text-red-600' },
+  'ISO27001': { icon: CheckCircle, color: 'text-indigo-600' }
 };
 
 export const SecurityCenter = memo(() => {
-  const [issues, setIssues] = useState<SecurityIssue[]>(mockSecurityIssues);
-  const [frameworks, setFrameworks] = useState<ComplianceFramework[]>(mockComplianceFrameworks);
-  const [metrics, setMetrics] = useState<SecurityMetrics>(mockMetrics);
+  const [metrics, setMetrics] = useState<SecurityMetrics | null>(null);
+  const [vulnerabilities, setVulnerabilities] = useState<SecurityVulnerability[]>([]);
+  const [complianceChecks, setComplianceChecks] = useState<ComplianceCheck[]>([]);
+  const [accessEvents, setAccessEvents] = useState<AccessEvent[]>([]);
   const [isScanning, setIsScanning] = useState(false);
-  const [autoScanEnabled, setAutoScanEnabled] = useState(true);
-  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Start security scan
-  const startSecurityScan = async () => {
-    setIsScanning(true);
-    // Simulate scan duration
-    setTimeout(() => {
-      setIsScanning(false);
-      // Update metrics after scan
-      setMetrics(prev => ({
-        ...prev,
-        securityScore: prev.securityScore + Math.floor(Math.random() * 5),
-      }));
-    }, 3000);
-  };
-
-  // Resolve security issue
-  const resolveIssue = (issueId: string) => {
-    setIssues(prev => prev.map(issue => 
-      issue.id === issueId 
-        ? { ...issue, status: 'resolved', resolvedAt: new Date() }
-        : issue
-    ));
-  };
-
-  // Export compliance report
-  const exportComplianceReport = (frameworkId: string) => {
-    const framework = frameworks.find(f => f.id === frameworkId);
-    if (framework) {
-      // Simulate report generation
-      const reportData = {
-        framework: framework.name,
-        compliance: framework.compliance,
-        timestamp: new Date().toISOString(),
-        requirements: framework.requirements
-      };
-      console.log('Exporting compliance report:', reportData);
-      // In real implementation, this would trigger a download
+  // Load security data
+  const loadSecurityData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [metricsData, vulnData, complianceData, accessData] = await Promise.all([
+        fetchSecurityMetrics(),
+        fetchVulnerabilities(),
+        fetchComplianceChecks(),
+        fetchAccessEvents()
+      ]);
+      
+      setMetrics(metricsData);
+      setVulnerabilities(vulnData);
+      setComplianceChecks(complianceData);
+      setAccessEvents(accessData);
+    } catch (error) {
+      console.error('Failed to load security data:', error);
+      // Handle error state - could show error message to user
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  const openIssues = issues.filter(issue => issue.status === 'open');
-  const criticalIssues = openIssues.filter(issue => issue.severity === 'critical');
+  // Run security scan
+  const handleSecurityScan = useCallback(async () => {
+    try {
+      setIsScanning(true);
+      await runSecurityScan();
+      // Reload data after scan
+      await loadSecurityData();
+    } catch (error) {
+      console.error('Security scan failed:', error);
+    } finally {
+      setIsScanning(false);
+    }
+  }, [loadSecurityData]);
+
+  // Generate compliance report
+  const handleGenerateReport = useCallback(async (framework: string) => {
+    try {
+      setIsGeneratingReport(true);
+      await generateComplianceReport(framework);
+      // In real implementation, this would trigger download or show success message
+    } catch (error) {
+      console.error('Report generation failed:', error);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }, []);
+
+  // Initial data load
+  useEffect(() => {
+    loadSecurityData();
+  }, [loadSecurityData]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Shield className="w-5 h-5 mr-2" />
+            Security Center
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />
+              ))}
+            </div>
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-4 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state when no security data
+  if (!metrics || (vulnerabilities.length === 0 && complianceChecks.length === 0 && accessEvents.length === 0)) {
+    return (
+      <Card className="border-2 border-dashed border-muted-foreground/25">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <Shield className="w-16 h-16 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Security Center Setup Required</h3>
+          <p className="text-muted-foreground text-center max-w-sm mb-6">
+            Initialize security monitoring to track vulnerabilities, compliance status, and access control.
+          </p>
+          <Button
+            onClick={handleSecurityScan}
+            disabled={isScanning}
+            className="bg-gradient-to-r from-red-600 to-red-700"
+          >
+            {isScanning ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Initializing Security...
+              </>
+            ) : (
+              <>
+                <Shield className="w-4 h-4 mr-2" />
+                Initialize Security Monitoring
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const totalVulnerabilities = vulnerabilities.length;
+  const criticalVulns = vulnerabilities.filter(v => v.severity === 'critical').length;
+  const compliancePercentage = metrics.compliance.total > 0 
+    ? Math.round((metrics.compliance.compliant / metrics.compliance.total) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
       {/* Security Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2 border-primary/20">
-          <CardContent className="p-6 text-center">
-            <Shield className="w-8 h-8 text-primary mx-auto mb-2" />
-            <p className="text-3xl font-bold text-primary">{metrics.securityScore}</p>
-            <p className="text-sm text-muted-foreground">Security Score</p>
-            <Progress value={metrics.securityScore} className="mt-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-            <p className="text-3xl font-bold text-red-600">{metrics.vulnerabilities.critical}</p>
-            <p className="text-sm text-muted-foreground">Critical Issues</p>
-            {metrics.vulnerabilities.critical > 0 && (
-              <Badge variant="destructive" className="mt-2">
-                Immediate Action Required
-              </Badge>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <FileText className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-            <p className="text-3xl font-bold text-blue-600">{metrics.compliance.overall}%</p>
-            <p className="text-sm text-muted-foreground">Compliance</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {metrics.compliance.frameworks} frameworks
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 text-center">
-            <Clock className="w-8 h-8 text-green-500 mx-auto mb-2" />
-            <p className="text-3xl font-bold text-green-600">{metrics.incidents.mttr}h</p>
-            <p className="text-sm text-muted-foreground">Avg Resolution Time</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {metrics.incidents.resolved}/{metrics.incidents.total} resolved
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Critical Alerts */}
-      {criticalIssues.length > 0 && (
-        <Alert className="border-red-200 bg-red-50">
-          <AlertTriangle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-red-800">
-              {criticalIssues.length} critical security issue{criticalIssues.length > 1 ? 's' : ''} require immediate attention
-            </span>
-            <Button variant="destructive" size="sm">
-              View Critical Issues
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Security Controls */}
-      <Card>
+      <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-primary" />
-              <span>Security Controls</span>
-            </CardTitle>
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">Auto-scan</span>
-                <Switch
-                  checked={autoScanEnabled}
-                  onCheckedChange={setAutoScanEnabled}
-                />
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Shield className="w-6 h-6 text-red-600" />
               </div>
-              <Button
-                onClick={startSecurityScan}
-                disabled={isScanning}
-                size="sm"
-              >
+              <div>
+                <CardTitle className="text-xl">Security Overview</CardTitle>
+                <p className="text-muted-foreground">
+                  Enterprise-grade security monitoring and compliance
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className={`
+                ${metrics.overallScore >= 80 ? 'bg-green-100 text-green-700' : 
+                  metrics.overallScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 
+                  'bg-red-100 text-red-700'}
+              `}>
+                Score: {metrics.overallScore}/100
+              </Badge>
+              <Button onClick={handleSecurityScan} variant="outline" size="sm" disabled={isScanning}>
                 {isScanning ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
@@ -341,96 +333,131 @@ export const SecurityCenter = memo(() => {
                   </>
                 ) : (
                   <>
-                    <Zap className="w-4 h-4 mr-1" />
-                    Start Scan
+                    <Shield className="w-4 h-4 mr-1" />
+                    Run Scan
                   </>
                 )}
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="vulnerabilities" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="vulnerabilities">
-                Vulnerabilities ({openIssues.length})
-              </TabsTrigger>
-              <TabsTrigger value="compliance">
-                Compliance ({frameworks.length})
-              </TabsTrigger>
-              <TabsTrigger value="access">
-                Access Control
-              </TabsTrigger>
-              <TabsTrigger value="monitoring">
-                Monitoring
-              </TabsTrigger>
-            </TabsList>
+      </Card>
 
-            <TabsContent value="vulnerabilities" className="space-y-4">
-              {openIssues.map(issue => {
-                const typeInfo = typeConfig[issue.type];
-                const severityInfo = severityConfig[issue.severity];
-                const TypeIcon = typeInfo.icon;
+      {/* Security Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-red-600">{criticalVulns}</p>
+            <p className="text-sm text-muted-foreground">Critical Issues</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-green-600">{compliancePercentage}%</p>
+            <p className="text-sm text-muted-foreground">Compliance</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Eye className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-blue-600">{metrics.accessAttempts.blocked}</p>
+            <p className="text-sm text-muted-foreground">Blocked Attempts</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Clock className="w-8 h-8 text-purple-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-purple-600">
+              {Math.floor((Date.now() - metrics.lastScan.getTime()) / (1000 * 60 * 60))}h
+            </p>
+            <p className="text-sm text-muted-foreground">Last Scan</p>
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* Critical Alerts */}
+      {criticalVulns > 0 && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>{criticalVulns} critical security vulnerabilities</strong> require immediate attention. 
+            These issues pose significant risk to your application security.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Security Tabs */}
+      <Tabs defaultValue="vulnerabilities" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="vulnerabilities">
+            Vulnerabilities ({totalVulnerabilities})
+          </TabsTrigger>
+          <TabsTrigger value="compliance">
+            Compliance ({metrics.compliance.frameworks.length})
+          </TabsTrigger>
+          <TabsTrigger value="access">
+            Access Control
+          </TabsTrigger>
+          <TabsTrigger value="monitoring">
+            Monitoring
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Vulnerabilities Tab */}
+        <TabsContent value="vulnerabilities" className="space-y-4">
+          {vulnerabilities.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Vulnerabilities Found</h3>
+                <p className="text-muted-foreground text-center">
+                  Your application is currently free of known security vulnerabilities.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {vulnerabilities.map(vuln => {
+                const severityInfo = severityConfig[vuln.severity];
                 return (
-                  <Card key={issue.id} className="hover:shadow-md transition-shadow">
+                  <Card key={vuln.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
-                        <div className="flex space-x-4 flex-1">
-                          <div className={`p-2 rounded-lg ${severityInfo.bg}`}>
-                            <TypeIcon className={`w-5 h-5 ${typeInfo.color}`} />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h4 className="font-semibold">{issue.title}</h4>
-                              <Badge variant="outline" className={`${severityInfo.bg} ${severityInfo.color} ${severityInfo.border}`}>
-                                {issue.severity.toUpperCase()}
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold">{vuln.title}</h4>
+                            <Badge className={`${severityInfo.bg} ${severityInfo.color} border-current`}>
+                              {severityInfo.label}
+                            </Badge>
+                            {vuln.cve && (
+                              <Badge variant="outline" className="text-xs">
+                                {vuln.cve}
                               </Badge>
-                              {issue.cve && (
-                                <Badge variant="outline">
-                                  {issue.cve}
-                                </Badge>
-                              )}
-                              {issue.cvssScore && (
-                                <Badge variant="outline" className="text-red-600 border-red-600">
-                                  CVSS {issue.cvssScore}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-muted-foreground mb-3">{issue.description}</p>
-                            <div className="space-y-2">
-                              <div className="text-sm">
-                                <span className="font-medium">Affected Assets: </span>
-                                <span className="text-muted-foreground">
-                                  {issue.affectedAssets.join(', ')}
-                                </span>
-                              </div>
-                              <div className="text-sm">
-                                <span className="font-medium">Recommendation: </span>
-                                <span className="text-muted-foreground">{issue.recommendation}</span>
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Detected {new Date(issue.detectedAt).toLocaleDateString()}
-                              </div>
-                            </div>
+                            )}
+                          </div>
+                          <p className="text-muted-foreground mb-3">{vuln.description}</p>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span><strong>Package:</strong> {vuln.package}@{vuln.version}</span>
+                            {vuln.fixedIn && (
+                              <span className="text-green-600">
+                                <strong>Fixed in:</strong> {vuln.fixedIn}
+                              </span>
+                            )}
+                            <span className="text-muted-foreground">
+                              {vuln.detectedAt.toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
                         <div className="flex space-x-2 ml-4">
-                          <Button
-                            onClick={() => setSelectedIssue(issue.id)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Details
-                          </Button>
-                          <Button
-                            onClick={() => resolveIssue(issue.id)}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Resolve
+                          {vuln.fixedIn && (
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                              Update Package
+                            </Button>
+                          )}
+                          <Button variant="outline" size="sm">
+                            View Details
                           </Button>
                         </div>
                       </div>
@@ -438,215 +465,207 @@ export const SecurityCenter = memo(() => {
                   </Card>
                 );
               })}
-            </TabsContent>
+            </div>
+          )}
+        </TabsContent>
 
-            <TabsContent value="compliance" className="space-y-4">
-              {frameworks.map(framework => (
-                <Card key={framework.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h4 className="font-semibold text-lg">{framework.name}</h4>
-                        <p className="text-muted-foreground">Version {framework.version}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {framework.compliance}%
-                        </div>
-                        <p className="text-sm text-muted-foreground">Compliant</p>
-                      </div>
-                    </div>
-
-                    <Progress value={framework.compliance} className="mb-4" />
-
-                    <div className="grid gap-3">
-                      {framework.requirements.slice(0, 3).map(req => (
-                        <div key={req.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                          <div>
-                            <p className="font-medium">{req.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Evidence: {req.evidence.length} items
+        {/* Compliance Tab */}
+        <TabsContent value="compliance" className="space-y-4">
+          <div className="grid gap-4">
+            {metrics.compliance.frameworks.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <FileText className="w-12 h-12 text-muted-foreground/50 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Compliance Frameworks Configured</h3>
+                  <p className="text-muted-foreground text-center">
+                    Configure compliance frameworks to monitor adherence to security standards.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              complianceChecks.map(check => {
+                const frameworkConfig = complianceConfig[check.framework];
+                const FrameworkIcon = frameworkConfig.icon;
+                
+                return (
+                  <Card key={check.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex space-x-4 flex-1">
+                          <div className="p-2 bg-muted rounded-lg">
+                            <FrameworkIcon className={`w-5 h-5 ${frameworkConfig.color}`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h4 className="font-semibold">{check.framework}</h4>
+                              <Badge variant={
+                                check.status === 'compliant' ? 'default' :
+                                check.status === 'non-compliant' ? 'destructive' : 'secondary'
+                              }>
+                                {check.status}
+                              </Badge>
+                            </div>
+                            <h5 className="font-medium mb-2">{check.requirement}</h5>
+                            <p className="text-muted-foreground mb-3">{check.description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Last checked: {check.lastChecked.toLocaleDateString()}
                             </p>
                           </div>
-                          <Badge variant={
-                            req.status === 'compliant' ? 'default' :
-                            req.status === 'partial' ? 'secondary' : 'destructive'
-                          }>
-                            {req.status === 'compliant' ? 'Compliant' :
-                             req.status === 'partial' ? 'Partial' : 'Non-compliant'}
-                          </Badge>
                         </div>
-                      ))}
-                    </div>
+                        <div className="flex space-x-2 ml-4">
+                          <Button
+                            onClick={() => handleGenerateReport(check.framework)}
+                            variant="outline"
+                            size="sm"
+                            disabled={isGeneratingReport}
+                          >
+                            {isGeneratingReport ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-4 h-4 mr-1" />
+                                Report
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+        </TabsContent>
 
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
-                      <p className="text-sm text-muted-foreground">
-                        Last assessment: {framework.lastAssessment.toLocaleDateString()}
+        {/* Access Control Tab */}
+        <TabsContent value="access" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Access Events</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {accessEvents.length === 0 ? (
+                <div className="text-center py-8">
+                  <UserCheck className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No recent access events to display.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {accessEvents.map(event => (
+                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          event.result === 'success' ? 'bg-green-500' :
+                          event.result === 'failure' ? 'bg-red-500' : 'bg-yellow-500'
+                        }`} />
+                        <div>
+                          <p className="font-medium">{event.userName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {event.action} • {event.resource}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {event.ipAddress} • {event.timestamp.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={
+                          event.riskLevel === 'high' ? 'destructive' :
+                          event.riskLevel === 'medium' ? 'secondary' : 'outline'
+                        }>
+                          {event.riskLevel} risk
+                        </Badge>
+                        <Badge variant={
+                          event.result === 'success' ? 'default' :
+                          event.result === 'failure' ? 'destructive' : 'secondary'
+                        }>
+                          {event.result}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Monitoring Tab */}
+        <TabsContent value="monitoring" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Wifi className="w-5 h-5 mr-2 text-blue-500" />
+                  <span>Security Monitoring</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-blue-600 mb-2">
+                      {metrics.accessAttempts.total.toLocaleString()}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Total access attempts (24h)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                      <p className="text-lg font-semibold text-red-600">
+                        {metrics.accessAttempts.blocked}
                       </p>
-                      <Button
-                        onClick={() => exportComplianceReport(framework.id)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Export Report
-                      </Button>
+                      <p className="text-xs text-muted-foreground">Blocked</p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
+                    <div>
+                      <p className="text-lg font-semibold text-orange-600">
+                        {metrics.accessAttempts.suspicious}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Suspicious</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <TabsContent value="access" className="space-y-4">
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <UserCheck className="w-5 h-5 text-green-500" />
-                      <span>Access Reviews</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                        <div>
-                          <p className="font-medium">Quarterly Access Review</p>
-                          <p className="text-sm text-muted-foreground">
-                            {metrics.accessReviews.pending} users pending review
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                          Due in 5 days
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
-                        <div>
-                          <p className="font-medium">Admin Privilege Review</p>
-                          <p className="text-sm text-muted-foreground">
-                            {metrics.accessReviews.overdue} users overdue
-                          </p>
-                        </div>
-                        <Badge variant="destructive">
-                          Overdue
-                        </Badge>
-                      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Terminal className="w-5 h-5 mr-2 text-green-500" />
+                  <span>System Health</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm">Security Posture</span>
+                      <span className="text-sm font-bold">{metrics.overallScore}%</span>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Key className="w-5 h-5 text-purple-500" />
-                      <span>Authentication & Authorization</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="font-medium">MFA Enabled</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">98% of users</p>
-                      </div>
-                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="font-medium">SSO Integration</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Active</p>
-                      </div>
+                    <Progress value={metrics.overallScore} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm">Compliance Score</span>
+                      <span className="text-sm font-bold">{compliancePercentage}%</span>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="monitoring" className="space-y-4">
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Wifi className="w-5 h-5 text-blue-500" />
-                      <span>Security Monitoring</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="font-medium">WAF Protection</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Active</p>
-                      </div>
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="font-medium">DDoS Protection</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Enabled</p>
-                      </div>
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <Eye className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium">Threat Intelligence</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Real-time</p>
-                      </div>
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <Terminal className="w-4 h-4 text-purple-600" />
-                          <span className="font-medium">SIEM Integration</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Connected</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Database className="w-5 h-5 text-orange-500" />
-                      <span>Data Protection</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span>Encryption at Rest</span>
-                        <Badge variant="default" className="bg-green-600">
-                          AES-256
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Encryption in Transit</span>
-                        <Badge variant="default" className="bg-green-600">
-                          TLS 1.3
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Key Management</span>
-                        <Badge variant="default" className="bg-blue-600">
-                          HSM
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Backup Encryption</span>
-                        <Badge variant="default" className="bg-green-600">
-                          Enabled
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+                    <Progress value={compliancePercentage} className="h-2" />
+                  </div>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      Last updated: {metrics.lastScan.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 });

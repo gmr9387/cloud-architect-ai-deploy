@@ -1,12 +1,11 @@
-import { memo, useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Users, 
   MessageCircle, 
@@ -24,530 +23,480 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { useWebSocket } from '@/utils/webSocket';
 
-interface CollaborationUser {
+interface TeamMember {
   id: string;
   name: string;
-  avatar: string;
-  role: 'owner' | 'admin' | 'developer' | 'viewer';
-  status: 'online' | 'idle' | 'offline';
+  email: string;
+  avatar?: string;
+  status: 'online' | 'offline' | 'away';
+  currentPage?: string;
   cursor?: {
     x: number;
     y: number;
-    element?: string;
+    color: string;
   };
-  currentView: string;
-  lastActive: Date;
+  isTyping?: boolean;
+  permissions: 'admin' | 'editor' | 'viewer';
 }
 
 interface ChatMessage {
   id: string;
   userId: string;
-  userName: string;
-  userAvatar: string;
   message: string;
   timestamp: Date;
-  type: 'message' | 'system' | 'deployment' | 'alert';
-  attachments?: {
-    type: 'image' | 'file' | 'code';
-    name: string;
-    url: string;
-  }[];
+  type: 'text' | 'system' | 'file';
+  edited?: boolean;
 }
 
-interface LiveActivity {
+interface ActivityItem {
   id: string;
   userId: string;
-  userName: string;
   action: string;
   target: string;
   timestamp: Date;
-  type: 'deployment' | 'edit' | 'view' | 'comment';
+  type: 'deploy' | 'edit' | 'comment' | 'join' | 'leave';
 }
 
-const mockUsers: CollaborationUser[] = [
-  {
-    id: '1',
-    name: 'Sarah Chen',
-    avatar: '/avatars/sarah.jpg',
-    role: 'owner',
-    status: 'online',
-    currentView: 'dashboard',
-    lastActive: new Date(),
-    cursor: { x: 120, y: 350, element: 'project-card-1' }
-  },
-  {
-    id: '2',
-    name: 'Mike Rodriguez',
-    avatar: '/avatars/mike.jpg',
-    role: 'developer',
-    status: 'online',
-    currentView: 'deployment-logs',
-    lastActive: new Date()
-  },
-  {
-    id: '3',
-    name: 'Emma Wilson',
-    avatar: '/avatars/emma.jpg',
-    role: 'admin',
-    status: 'idle',
-    currentView: 'analytics',
-    lastActive: new Date(Date.now() - 300000)
-  },
-  {
-    id: '4',
-    name: 'David Kumar',
-    avatar: '/avatars/david.jpg',
-    role: 'developer',
-    status: 'offline',
-    currentView: 'projects',
-    lastActive: new Date(Date.now() - 3600000)
-  }
-];
+interface CollaborationSession {
+  id: string;
+  projectId: string;
+  activeMembers: TeamMember[];
+  isRecording: boolean;
+  startTime: Date;
+}
 
-const mockMessages: ChatMessage[] = [
-  {
-    id: '1',
-    userId: '2',
-    userName: 'Mike Rodriguez',
-    userAvatar: '/avatars/mike.jpg',
-    message: 'Deployment pipeline is running smoothly. ETA 3 minutes.',
-    timestamp: new Date(Date.now() - 300000),
-    type: 'deployment'
-  },
-  {
-    id: '2',
-    userId: '1',
-    userName: 'Sarah Chen',
-    userAvatar: '/avatars/sarah.jpg',
-    message: 'Great! I can see the build progress in real-time. The new caching optimizations are working well.',
-    timestamp: new Date(Date.now() - 240000),
-    type: 'message'
-  },
-  {
-    id: '3',
-    userId: 'system',
-    userName: 'System',
-    userAvatar: '/system-avatar.svg',
-    message: 'Deployment completed successfully. Performance improved by 23%.',
-    timestamp: new Date(Date.now() - 120000),
-    type: 'system'
-  }
-];
-
-const mockActivities: LiveActivity[] = [
-  {
-    id: '1',
-    userId: '1',
-    userName: 'Sarah Chen',
-    action: 'started deployment',
-    target: 'my-portfolio',
-    timestamp: new Date(Date.now() - 180000),
-    type: 'deployment'
-  },
-  {
-    id: '2',
-    userId: '2',
-    userName: 'Mike Rodriguez',
-    action: 'commented on',
-    target: 'deployment logs',
-    timestamp: new Date(Date.now() - 120000),
-    type: 'comment'
-  },
-  {
-    id: '3',
-    userId: '3',
-    userName: 'Emma Wilson',
-    action: 'viewed',
-    target: 'performance analytics',
-    timestamp: new Date(Date.now() - 60000),
-    type: 'view'
-  }
-];
-
-const getRoleColor = (role: string) => {
-  switch (role) {
-    case 'owner': return 'bg-purple-100 text-purple-700 border-purple-200';
-    case 'admin': return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'developer': return 'bg-green-100 text-green-700 border-green-200';
-    case 'viewer': return 'bg-gray-100 text-gray-700 border-gray-200';
-    default: return 'bg-gray-100 text-gray-700 border-gray-200';
-  }
+// API functions for collaboration features
+const fetchTeamMembers = async (): Promise<TeamMember[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/collaboration/members');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
 };
 
-const getStatusIndicator = (status: string) => {
-  switch (status) {
-    case 'online': return 'w-3 h-3 bg-green-500 rounded-full';
-    case 'idle': return 'w-3 h-3 bg-yellow-500 rounded-full';
-    case 'offline': return 'w-3 h-3 bg-gray-400 rounded-full';
-    default: return 'w-3 h-3 bg-gray-400 rounded-full';
-  }
+const fetchChatMessages = async (): Promise<ChatMessage[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/collaboration/chat');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
+
+const fetchRecentActivity = async (): Promise<ActivityItem[]> => {
+  // TODO: Replace with actual API call
+  // Example: const response = await fetch('/api/collaboration/activity');
+  // return response.json();
+  
+  // For now, return empty array - real data will come from backend
+  return [];
+};
+
+const sendChatMessage = async (message: string): Promise<void> => {
+  // TODO: Replace with actual API call
+  // Example: await fetch('/api/collaboration/chat', { 
+  //   method: 'POST', 
+  //   body: JSON.stringify({ message }) 
+  // });
+  
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+};
+
+const updateMemberStatus = async (status: 'online' | 'offline' | 'away'): Promise<void> => {
+  // TODO: Replace with actual API call
+  // Example: await fetch('/api/collaboration/status', { 
+  //   method: 'PUT', 
+  //   body: JSON.stringify({ status }) 
+  // });
+  
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 200));
 };
 
 export const RealTimeCollaboration = memo(() => {
-  const [users, setUsers] = useState<CollaborationUser[]>(mockUsers);
-  const [messages, setMessages] = useState<ChatMessage[]>(mockMessages);
-  const [activities, setActivities] = useState<LiveActivity[]>(mockActivities);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [showCursors, setShowCursors] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [activeUsers, setActiveUsers] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { connectionState, subscribe, send } = useWebSocket({
-    url: process.env.VITE_WS_URL || 'wss://api.clouddeploy.com/ws',
-    enableLogging: process.env.NODE_ENV === 'development',
-  });
-
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Handle real-time updates
-  useEffect(() => {
-    const unsubscribeUserActivity = subscribe('user_activity', (message) => {
-      const { type, userId, data } = message.payload;
+  // Load collaboration data
+  const loadCollaborationData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [members, messages, activity] = await Promise.all([
+        fetchTeamMembers(),
+        fetchChatMessages(),
+        fetchRecentActivity()
+      ]);
       
-      switch (type) {
-        case 'cursor_move':
-          setUsers(prev => prev.map(user => 
-            user.id === userId 
-              ? { ...user, cursor: data.cursor }
-              : user
-          ));
-          break;
-        case 'view_change':
-          setUsers(prev => prev.map(user => 
-            user.id === userId 
-              ? { ...user, currentView: data.view }
-              : user
-          ));
-          break;
-        case 'status_change':
-          setUsers(prev => prev.map(user => 
-            user.id === userId 
-              ? { ...user, status: data.status }
-              : user
-          ));
-          break;
-      }
-    });
-
-    const unsubscribeMessages = subscribe('chat_message', (message) => {
-      const newMsg: ChatMessage = {
-        id: message.id,
-        userId: message.payload.userId,
-        userName: message.payload.userName,
-        userAvatar: message.payload.userAvatar,
-        message: message.payload.message,
-        timestamp: new Date(message.timestamp),
-        type: message.payload.type || 'message'
-      };
-      setMessages(prev => [...prev, newMsg]);
-    });
-
-    return () => {
-      unsubscribeUserActivity();
-      unsubscribeMessages();
-    };
-  }, [subscribe]);
-
-  // Send message
-  const sendMessage = useCallback(() => {
-    if (!newMessage.trim() || connectionState !== 'connected') return;
-
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      userId: 'current-user',
-      userName: 'You',
-      userAvatar: '/avatars/current-user.jpg',
-      message: newMessage,
-      timestamp: new Date(),
-      type: 'message'
-    };
-
-    send('chat_message', {
-      userId: 'current-user',
-      userName: 'You',
-      userAvatar: '/avatars/current-user.jpg',
-      message: newMessage,
-      type: 'message'
-    });
-
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
-  }, [newMessage, connectionState, send]);
-
-  // Handle keyboard shortcuts
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      sendMessage();
+      setTeamMembers(members);
+      setChatMessages(messages);
+      setRecentActivity(activity);
+      setActiveUsers(members.filter(member => member.status === 'online'));
+    } catch (error) {
+      console.error('Failed to load collaboration data:', error);
+      // Handle error state - could show error message to user
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, []);
 
-  const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
+  // Send message handler
+  const handleSendMessage = useCallback(async () => {
+    if (!newMessage.trim()) return;
     
-    if (minutes < 1) return 'now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
-    return `${Math.floor(minutes / 1440)}d ago`;
-  };
+    try {
+      await sendChatMessage(newMessage);
+      setNewMessage('');
+      // In real implementation, new message would be received via WebSocket
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  }, [newMessage]);
 
-  const onlineUsers = users.filter(user => user.status === 'online');
-  const idleUsers = users.filter(user => user.status === 'idle');
+  // Toggle audio/video handlers
+  const toggleAudio = useCallback(async () => {
+    setIsAudioEnabled(prev => !prev);
+    // TODO: Implement actual audio toggle logic
+  }, []);
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Live Users Panel */}
-      <Card className="lg:col-span-1">
+  const toggleVideo = useCallback(async () => {
+    setIsVideoEnabled(prev => !prev);
+    // TODO: Implement actual video toggle logic
+  }, []);
+
+  const toggleScreenShare = useCallback(async () => {
+    setIsScreenSharing(prev => !prev);
+    // TODO: Implement actual screen sharing logic
+  }, []);
+
+  // Initial data load
+  useEffect(() => {
+    loadCollaborationData();
+  }, [loadCollaborationData]);
+
+  // Empty state when no team members
+  if (!isLoading && teamMembers.length === 0) {
+    return (
+      <Card className="border-2 border-dashed border-muted-foreground/25">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <Users className="w-16 h-16 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No Team Members Yet</h3>
+          <p className="text-muted-foreground text-center max-w-sm mb-6">
+            Invite team members to start collaborating in real-time. Share projects, chat, and work together seamlessly.
+          </p>
+          <Button>
+            <Share2 className="w-4 h-4 mr-2" />
+            Invite Team Members
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-blue-500" />
-              <span>Team ({users.length})</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-muted-foreground">{onlineUsers.length} online</span>
-            </div>
+          <CardTitle className="flex items-center">
+            <Users className="w-5 h-5 mr-2" />
+            Real-Time Collaboration
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Online Users */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">Online</h4>
-            <div className="space-y-3">
-              {onlineUsers.map(user => (
-                <div key={user.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50">
-                  <div className="relative">
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                    </Avatar>
-                    <div className={`absolute -bottom-0.5 -right-0.5 ${getStatusIndicator(user.status)} border-2 border-white`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{user.name}</p>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="outline" className={`text-xs ${getRoleColor(user.role)}`}>
-                        {user.role}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {user.currentView}
-                      </span>
-                    </div>
-                  </div>
-                  {user.cursor && showCursors && (
-                    <Mouse className="w-4 h-4 text-blue-500" />
-                  )}
-                </div>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex space-x-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="w-8 h-8 bg-muted rounded-full animate-pulse" />
+              ))}
+            </div>
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-4 bg-muted rounded animate-pulse" />
               ))}
             </div>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-          {/* Idle/Offline Users */}
-          {idleUsers.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">Away</h4>
-              <div className="space-y-2">
-                {idleUsers.map(user => (
-                  <div key={user.id} className="flex items-center space-x-3 p-2 rounded-lg opacity-60">
-                    <div className="relative">
-                      <Avatar className="w-6 h-6">
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback className="text-xs">{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <div className={`absolute -bottom-0.5 -right-0.5 ${getStatusIndicator(user.status)} border border-white`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatRelativeTime(user.lastActive)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+  const onlineMembers = teamMembers.filter(member => member.status === 'online');
+
+  return (
+    <div className="space-y-6">
+      {/* Session Overview */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span>Active Collaboration Session</span>
+              <Badge variant="secondary" className="bg-green-100 text-green-700">
+                {onlineMembers.length} Online
+              </Badge>
             </div>
-          )}
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-muted-foreground">Live</span>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center space-x-4">
+            {/* Active Users Avatars */}
+            <div className="flex -space-x-2">
+              {onlineMembers.slice(0, 5).map((member) => (
+                <Avatar key={member.id} className="border-2 border-white">
+                  <AvatarImage src={member.avatar} />
+                  <AvatarFallback className="text-xs">
+                    {member.name.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+              {onlineMembers.length > 5 && (
+                <div className="w-8 h-8 rounded-full bg-muted border-2 border-white flex items-center justify-center text-xs font-medium">
+                  +{onlineMembers.length - 5}
+                </div>
+              )}
+            </div>
 
-          <Separator />
-
-          {/* Collaboration Controls */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground">Collaboration</h4>
-            <div className="grid grid-cols-2 gap-2">
+            {/* Voice/Video Controls */}
+            <div className="flex space-x-2 ml-auto">
               <Button
-                variant={isVoiceEnabled ? "default" : "outline"}
+                variant={isAudioEnabled ? "default" : "outline"}
                 size="sm"
-                onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
-                className="justify-start"
+                onClick={toggleAudio}
               >
-                {isVoiceEnabled ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}
-                Voice
+                {isAudioEnabled ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}
+                Audio
               </Button>
               <Button
                 variant={isVideoEnabled ? "default" : "outline"}
                 size="sm"
-                onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-                className="justify-start"
+                onClick={toggleVideo}
               >
                 {isVideoEnabled ? <Video className="w-4 h-4 mr-1" /> : <VideoOff className="w-4 h-4 mr-1" />}
                 Video
               </Button>
-                              <Button
-                  variant={isScreenSharing ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsScreenSharing(!isScreenSharing)}
-                  className="justify-start col-span-2"
-                >
-                  <Monitor className="w-4 h-4 mr-1" />
-                  {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
-                </Button>
+              <Button
+                variant={isScreenSharing ? "default" : "outline"}
+                size="sm"
+                onClick={toggleScreenShare}
+                className="justify-start col-span-2"
+              >
+                <Monitor className="w-4 h-4 mr-1" />
+                {isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Chat and Activity */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Real-time Chat */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageCircle className="w-5 h-5 text-green-500" />
-              <span>Team Chat</span>
-              <Badge variant="outline" className={connectionState === 'connected' ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}>
-                {connectionState}
+      {/* Collaboration Tabs */}
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="chat" className="flex items-center space-x-2">
+            <MessageCircle className="w-4 h-4" />
+            <span>Team Chat</span>
+            {chatMessages.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {chatMessages.length}
               </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Messages */}
-              <ScrollArea className="h-64 border rounded-lg p-4">
-                <div className="space-y-4">
-                  {messages.map(message => {
-                    const isSystem = message.type === 'system';
-                    const isDeployment = message.type === 'deployment';
-                    
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex items-center space-x-2">
+            <Clock className="w-4 h-4" />
+            <span>Activity Feed</span>
+          </TabsTrigger>
+          <TabsTrigger value="members" className="flex items-center space-x-2">
+            <Users className="w-4 h-4" />
+            <span>Team Members</span>
+            <Badge variant="outline" className="ml-1">
+              {teamMembers.length}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Team Chat */}
+        <TabsContent value="chat" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Team Chat</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageCircle className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {chatMessages.map((message) => {
+                    const sender = teamMembers.find(m => m.id === message.userId);
                     return (
-                      <div key={message.id} className={`flex space-x-3 ${isSystem ? 'justify-center' : ''}`}>
-                        {!isSystem && (
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={message.userAvatar} alt={message.userName} />
-                            <AvatarFallback className="text-xs">
-                              {message.userName.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        <div className={`flex-1 ${isSystem ? 'text-center' : ''}`}>
-                          {!isSystem && (
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-sm font-medium">{message.userName}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatTime(message.timestamp)}
-                              </span>
-                              {isDeployment && (
-                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600">
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  Deployment
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                          <div className={`text-sm ${isSystem ? 'bg-muted p-2 rounded-lg inline-block' : ''} ${isDeployment ? 'bg-blue-50 p-2 rounded border border-blue-200' : ''}`}>
-                            {isSystem && <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />}
-                            {message.message}
+                      <div key={message.id} className="flex space-x-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={sender?.avatar} />
+                          <AvatarFallback className="text-xs">
+                            {sender?.name.split(' ').map(n => n[0]).join('') || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-sm font-medium">{sender?.name || 'Unknown User'}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {message.timestamp.toLocaleTimeString()}
+                            </span>
+                            {message.edited && (
+                              <Badge variant="outline" className="text-xs">
+                                edited
+                              </Badge>
+                            )}
                           </div>
+                          <p className="text-sm text-muted-foreground">{message.message}</p>
                         </div>
                       </div>
                     );
                   })}
-                  <div ref={messagesEndRef} />
                 </div>
-              </ScrollArea>
-
+              )}
+              
               {/* Message Input */}
-              <div className="flex space-x-2">
-                <Textarea
-                  placeholder="Type a message... (Ctrl+Enter to send)"
+              <div className="flex space-x-2 mt-4">
+                <Input
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  className="flex-1 min-h-0 resize-none"
-                  rows={2}
+                  placeholder="Type your message..."
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  className="flex-1"
                 />
-                <Button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim() || connectionState !== 'connected'}
-                  className="self-end"
-                >
+                <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Live Activity Feed */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Eye className="w-5 h-5 text-purple-500" />
-              <span>Live Activity</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-48">
+        {/* Activity Feed */}
+        <TabsContent value="activity" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentActivity.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No recent activity to show.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentActivity.map((activity) => {
+                    const user = teamMembers.find(m => m.id === activity.userId);
+                    const getActivityIcon = () => {
+                      switch (activity.type) {
+                        case 'deploy': return <CheckCircle className="w-4 h-4 text-green-500" />;
+                        case 'edit': return <Edit3 className="w-4 h-4 text-blue-500" />;
+                        case 'comment': return <MessageCircle className="w-4 h-4 text-purple-500" />;
+                        case 'join': return <Users className="w-4 h-4 text-green-500" />;
+                        case 'leave': return <Users className="w-4 h-4 text-red-500" />;
+                        default: return <AlertCircle className="w-4 h-4 text-gray-500" />;
+                      }
+                    };
+
+                    return (
+                      <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg bg-muted/30">
+                        <div className="mt-0.5">
+                          {getActivityIcon()}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm">
+                            <span className="font-medium">{user?.name || 'Unknown User'}</span>
+                            {' '}{activity.action}{' '}
+                            <span className="font-medium">{activity.target}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.timestamp.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Team Members */}
+        <TabsContent value="members" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>Team Members ({teamMembers.length})</span>
+                <Button variant="outline" size="sm">
+                  <Share2 className="w-4 h-4 mr-1" />
+                  Invite
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-3">
-                {activities.map(activity => (
-                  <div key={activity.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="font-medium">{activity.userName}</span>
-                        {' '}
-                        <span className="text-muted-foreground">{activity.action}</span>
-                        {' '}
-                        <span className="font-medium">{activity.target}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatRelativeTime(activity.timestamp)}
-                      </p>
+                {teamMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                    <div className="flex items-center space-x-3">
+                      <div className="relative">
+                        <Avatar>
+                          <AvatarImage src={member.avatar} />
+                          <AvatarFallback>
+                            {member.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                          member.status === 'online' ? 'bg-green-500' : 
+                          member.status === 'away' ? 'bg-yellow-500' : 'bg-gray-400'
+                        }`} />
+                      </div>
+                      <div>
+                        <p className="font-medium">{member.name}</p>
+                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                        {member.currentPage && member.status === 'online' && (
+                          <p className="text-xs text-blue-600 flex items-center">
+                            <Eye className="w-3 h-3 mr-1" />
+                            Viewing: {member.currentPage}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <Badge variant="outline" className={
-                      activity.type === 'deployment' ? 'text-blue-600 border-blue-600' :
-                      activity.type === 'edit' ? 'text-green-600 border-green-600' :
-                      activity.type === 'comment' ? 'text-purple-600 border-purple-600' :
-                      'text-gray-600 border-gray-600'
-                    }>
-                      {activity.type}
-                    </Badge>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={
+                        member.status === 'online' ? 'default' : 
+                        member.status === 'away' ? 'secondary' : 'outline'
+                      }>
+                        {member.status}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {member.permissions}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 });
