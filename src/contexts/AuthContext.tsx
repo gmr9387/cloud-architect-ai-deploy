@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { storage } from '@/utils/localStorage';
+import { ActivityDataManager } from '@/utils/localStorage';
 
 export interface User {
   id: string;
@@ -18,165 +20,195 @@ export interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => Promise<void>;
+  isDemoMode: boolean;
 }
 
-// Authentication service interface
-interface AuthService {
-  login(email: string, password: string): Promise<{ user: User; token: string }>;
-  register(email: string, password: string, name: string): Promise<{ user: User; token: string }>;
-  logout(): Promise<void>;
-  getCurrentUser(): Promise<User | null>;
-  updateProfile(updates: Partial<User>): Promise<User>;
-  refreshToken(): Promise<string>;
-}
-
-// Real authentication service implementation
-class AuthenticationService implements AuthService {
-  private readonly apiUrl = process.env.VITE_API_URL || 'https://api.example.com';
-  private token: string | null = null;
-
-  constructor() {
-    this.token = localStorage.getItem('auth_token');
+// Demo users for local development
+const DEMO_USERS = [
+  {
+    id: 'demo_admin',
+    email: 'admin@clouddeploy.dev',
+    name: 'Admin User',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+    role: 'admin' as const,
+    password: 'admin123',
+    createdAt: new Date('2024-01-01'),
+    lastLoginAt: new Date()
+  },
+  {
+    id: 'demo_user',
+    email: 'user@clouddeploy.dev',
+    name: 'Demo User',
+    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b108?w=150&h=150&fit=crop&crop=face',
+    role: 'user' as const,
+    password: 'user123',
+    createdAt: new Date('2024-01-15'),
+    lastLoginAt: new Date()
+  },
+  {
+    id: 'demo_viewer',
+    email: 'viewer@clouddeploy.dev',
+    name: 'Viewer User',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+    role: 'viewer' as const,
+    password: 'viewer123',
+    createdAt: new Date('2024-02-01'),
+    lastLoginAt: new Date()
   }
+];
+
+// Local authentication service for demo/development
+class LocalAuthService {
+  private readonly isDemoMode = process.env.NODE_ENV === 'development' || !process.env.VITE_SUPABASE_URL;
 
   async login(email: string, password: string): Promise<{ user: User; token: string }> {
-    // TODO: Replace with actual API call
-    // Example:
-    // const response = await fetch(`${this.apiUrl}/auth/login`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password })
-    // });
-    // 
-    // if (!response.ok) {
-    //   throw new Error('Invalid credentials');
-    // }
-    // 
-    // const data = await response.json();
-    // this.token = data.token;
-    // localStorage.setItem('auth_token', this.token);
-    // return data;
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // For now, throw error - real implementation needed
-    throw new Error('Authentication service not configured. Please set up your backend API.');
+    if (this.isDemoMode) {
+      // Demo mode: check against demo users
+      const demoUser = DEMO_USERS.find(u => u.email === email && u.password === password);
+      if (!demoUser) {
+        throw new Error('Invalid email or password. Try: admin@clouddeploy.dev / admin123');
+      }
+
+      const user: User = {
+        id: demoUser.id,
+        email: demoUser.email,
+        name: demoUser.name,
+        avatar: demoUser.avatar,
+        role: demoUser.role,
+        createdAt: demoUser.createdAt,
+        lastLoginAt: new Date()
+      };
+
+      const token = `demo_token_${user.id}_${Date.now()}`;
+      storage.setItem('AUTH_TOKEN', token);
+      storage.setItem('USER_DATA', user);
+
+      // Add login activity
+      ActivityDataManager.addActivity({
+        userId: user.id,
+        userName: user.name,
+        action: 'logged in',
+        target: 'application',
+        type: 'auth'
+      });
+
+      return { user, token };
+    } else {
+      // Production mode: will use Supabase
+      throw new Error('Authentication service not configured. Please set up Supabase integration.');
+    }
   }
 
   async register(email: string, password: string, name: string): Promise<{ user: User; token: string }> {
-    // TODO: Replace with actual API call
-    // Example:
-    // const response = await fetch(`${this.apiUrl}/auth/register`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password, name })
-    // });
-    // 
-    // if (!response.ok) {
-    //   const error = await response.json();
-    //   throw new Error(error.message || 'Registration failed');
-    // }
-    // 
-    // const data = await response.json();
-    // this.token = data.token;
-    // localStorage.setItem('auth_token', this.token);
-    // return data;
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // For now, throw error - real implementation needed
-    throw new Error('Authentication service not configured. Please set up your backend API.');
+    if (this.isDemoMode) {
+      // Check if user already exists
+      const existingUsers = storage.getItem('DEMO_USERS', []) || [];
+      if (existingUsers.find((u: any) => u.email === email) || DEMO_USERS.find(u => u.email === email)) {
+        throw new Error('User already exists with this email');
+      }
+
+      const user: User = {
+        id: `demo_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        email,
+        name,
+        role: 'user',
+        createdAt: new Date(),
+        lastLoginAt: new Date()
+      };
+
+      // Save to local storage
+      existingUsers.push({ ...user, password });
+      storage.setItem('DEMO_USERS', existingUsers);
+
+      const token = `demo_token_${user.id}_${Date.now()}`;
+      storage.setItem('AUTH_TOKEN', token);
+      storage.setItem('USER_DATA', user);
+
+      // Add registration activity
+      ActivityDataManager.addActivity({
+        userId: user.id,
+        userName: user.name,
+        action: 'registered',
+        target: 'application',
+        type: 'auth'
+      });
+
+      return { user, token };
+    } else {
+      // Production mode: will use Supabase
+      throw new Error('Authentication service not configured. Please set up Supabase integration.');
+    }
   }
 
   async logout(): Promise<void> {
-    // TODO: Replace with actual API call
-    // Example:
-    // if (this.token) {
-    //   await fetch(`${this.apiUrl}/auth/logout`, {
-    //     method: 'POST',
-    //     headers: { 
-    //       'Authorization': `Bearer ${this.token}`,
-    //       'Content-Type': 'application/json'
-    //     }
-    //   });
-    // }
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    this.token = null;
-    localStorage.removeItem('auth_token');
+    const user = storage.getItem('USER_DATA', null);
+    if (user) {
+      // Add logout activity
+      ActivityDataManager.addActivity({
+        userId: user.id,
+        userName: user.name,
+        action: 'logged out',
+        target: 'application',
+        type: 'auth'
+      });
+    }
+
+    storage.removeItem('AUTH_TOKEN');
+    storage.removeItem('USER_DATA');
   }
 
   async getCurrentUser(): Promise<User | null> {
-    if (!this.token) {
-      return null;
+    const token = storage.getItem('AUTH_TOKEN', null);
+    const userData = storage.getItem('USER_DATA', null);
+
+    if (token && userData) {
+      return userData;
     }
 
-    // TODO: Replace with actual API call
-    // Example:
-    // try {
-    //   const response = await fetch(`${this.apiUrl}/auth/me`, {
-    //     headers: { 'Authorization': `Bearer ${this.token}` }
-    //   });
-    //   
-    //   if (!response.ok) {
-    //     throw new Error('Failed to get user');
-    //   }
-    //   
-    //   return await response.json();
-    // } catch (error) {
-    //   this.token = null;
-    //   localStorage.removeItem('auth_token');
-    //   return null;
-    // }
-
-    // For now, return null - real implementation needed
     return null;
   }
 
   async updateProfile(updates: Partial<User>): Promise<User> {
-    if (!this.token) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    const currentUser = storage.getItem('USER_DATA', null);
+    if (!currentUser) {
       throw new Error('Not authenticated');
     }
 
-    // TODO: Replace with actual API call
-    // Example:
-    // const response = await fetch(`${this.apiUrl}/auth/profile`, {
-    //   method: 'PUT',
-    //   headers: {
-    //     'Authorization': `Bearer ${this.token}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(updates)
-    // });
-    // 
-    // if (!response.ok) {
-    //   throw new Error('Failed to update profile');
-    // }
-    // 
-    // return await response.json();
+    const updatedUser: User = {
+      ...currentUser,
+      ...updates,
+      id: currentUser.id, // Prevent ID changes
+      createdAt: currentUser.createdAt // Prevent creation date changes
+    };
 
-    // For now, throw error - real implementation needed
-    throw new Error('Authentication service not configured. Please set up your backend API.');
+    storage.setItem('USER_DATA', updatedUser);
+
+    // Add profile update activity
+    ActivityDataManager.addActivity({
+      userId: updatedUser.id,
+      userName: updatedUser.name,
+      action: 'updated profile',
+      target: 'user settings',
+      type: 'edit'
+    });
+
+    return updatedUser;
   }
 
-  async refreshToken(): Promise<string> {
-    if (!this.token) {
-      throw new Error('No token to refresh');
-    }
-
-    // TODO: Replace with actual API call
-    // Example:
-    // const response = await fetch(`${this.apiUrl}/auth/refresh`, {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${this.token}` }
-    // });
-    // 
-    // if (!response.ok) {
-    //   throw new Error('Failed to refresh token');
-    // }
-    // 
-    // const data = await response.json();
-    // this.token = data.token;
-    // localStorage.setItem('auth_token', this.token);
-    // return this.token;
-
-    // For now, throw error - real implementation needed
-    throw new Error('Authentication service not configured. Please set up your backend API.');
+  getDemoMode(): boolean {
+    return this.isDemoMode;
   }
 }
 
@@ -187,7 +219,7 @@ interface AuthProviderProps {
 }
 
 // Create auth service instance
-const authService = new AuthenticationService();
+const authService = new LocalAuthService();
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
@@ -200,7 +232,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(currentUser);
       } catch (error) {
         console.error('Failed to initialize auth:', error);
-        // Not throwing error here as this could be normal (no auth configured)
       } finally {
         setIsLoading(false);
       }
@@ -266,6 +297,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     register,
     logout,
     updateProfile,
+    isDemoMode: authService.getDemoMode(),
   };
 
   return (

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, GitBranch, Zap, TrendingUp, Brain, Users, Shield, Sparkles } from "lucide-react";
+import { ProjectDataManager, DashboardDataManager, ActivityDataManager } from "@/utils/localStorage";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Lazy load heavy components for better performance
 const AIInsightsPanel = lazy(() => import("@/components/ai/AIInsightsPanel").then(module => ({ default: module.AIInsightsPanel })));
@@ -56,6 +58,9 @@ interface Project {
   buildTime: string;
   visitors: string;
   aiOptimizations?: number;
+  framework?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Stats interface
@@ -65,6 +70,51 @@ interface DashboardStats {
   aiOptimizations: number;
   securityScore: number;
 }
+
+// Demo projects for first-time users
+const DEMO_PROJECTS: Project[] = [
+  {
+    id: 'demo_portfolio',
+    name: 'my-portfolio',
+    status: 'success',
+    lastDeploy: '2h ago',
+    domain: 'portfolio.yourdomain.com',
+    branch: 'main',
+    buildTime: '1m 23s',
+    visitors: '2.1k',
+    aiOptimizations: 28,
+    framework: 'React',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo_ecommerce',
+    name: 'ecommerce-app',
+    status: 'building',
+    lastDeploy: '5m ago',
+    domain: 'shop.yourdomain.com',
+    branch: 'feature/checkout',
+    buildTime: '2m 15s',
+    visitors: '8.5k',
+    aiOptimizations: 35,
+    framework: 'Next.js',
+    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'demo_docs',
+    name: 'docs-site',
+    status: 'success',
+    lastDeploy: '1d ago',
+    domain: 'docs.yourdomain.com',
+    branch: 'main',
+    buildTime: '45s',
+    visitors: '1.2k',
+    framework: 'Vite',
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  }
+];
 
 // Quick stats data structure
 const getQuickStatsData = (stats: DashboardStats) => [
@@ -140,7 +190,11 @@ const QuickStats = memo(({ stats }: { stats: DashboardStats }) => {
 QuickStats.displayName = 'QuickStats';
 
 // Memoized ProjectList component
-const ProjectList = memo(({ projects, isLoading }: { projects: Project[]; isLoading: boolean }) => {
+const ProjectList = memo(({ projects, isLoading, onCreateProject }: { 
+  projects: Project[]; 
+  isLoading: boolean;
+  onCreateProject: () => void;
+}) => {
   if (isLoading) {
     return (
       <div>
@@ -165,7 +219,7 @@ const ProjectList = memo(({ projects, isLoading }: { projects: Project[]; isLoad
             <p className="text-muted-foreground text-center max-w-sm mb-4">
               Get started by creating your first project. Deploy any framework in seconds.
             </p>
-            <Button>
+            <Button onClick={onCreateProject}>
               <Plus className="w-4 h-4 mr-2" />
               Create Project
             </Button>
@@ -177,7 +231,13 @@ const ProjectList = memo(({ projects, isLoading }: { projects: Project[]; isLoad
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Recent Projects</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Recent Projects</h2>
+        <Button onClick={onCreateProject} size="sm">
+          <Plus className="w-4 h-4 mr-2" />
+          New Project
+        </Button>
+      </div>
       <div className="grid gap-4">
         {projects.map((project) => (
           <ProjectCard key={project.id} project={project} />
@@ -189,31 +249,82 @@ const ProjectList = memo(({ projects, isLoading }: { projects: Project[]; isLoad
 
 ProjectList.displayName = 'ProjectList';
 
-// API functions (to be implemented with real backend)
+// API functions (now using local storage)
 const fetchProjects = async (): Promise<Project[]> => {
-  // TODO: Replace with actual API call
-  // Example: const response = await fetch('/api/projects');
-  // return response.json();
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 800));
   
-  // For now, return empty array - real data will come from backend
-  return [];
+  let projects = ProjectDataManager.getProjects() || [];
+  
+  // If no projects exist, create demo projects for first-time users
+  if (projects.length === 0) {
+    projects = DEMO_PROJECTS.map(project => ({ ...project }));
+    ProjectDataManager.saveProjects(projects);
+    
+    // Update stats
+    const stats = DashboardDataManager.getStats();
+    DashboardDataManager.updateStats({
+      ...stats,
+      activeProjects: projects.length,
+      monthlyDeploys: 24,
+      aiOptimizations: 63,
+      securityScore: 87
+    });
+  }
+  
+  return projects;
 };
 
 const fetchDashboardStats = async (): Promise<DashboardStats> => {
-  // TODO: Replace with actual API call
-  // Example: const response = await fetch('/api/dashboard/stats');
-  // return response.json();
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
   
-  // For now, return default stats - real data will come from backend
-  return {
-    activeProjects: 0,
-    monthlyDeploys: 0,
-    aiOptimizations: 0,
-    securityScore: 0
+  const projects = ProjectDataManager.getProjects() || [];
+  const stats = DashboardDataManager.getStats();
+  
+  // Auto-update active projects count
+  const updatedStats = {
+    ...stats,
+    activeProjects: projects.length
   };
+  
+  DashboardDataManager.updateStats(updatedStats);
+  return updatedStats;
+};
+
+const createNewProject = async (projectData: Partial<Project>): Promise<Project> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 1200));
+  
+  const frameworks = ['React', 'Next.js', 'Vue.js', 'Svelte', 'Vite', 'Nuxt.js'];
+  const statuses: Project['status'][] = ['success', 'building', 'pending'];
+  
+  const newProject: Project = {
+    name: projectData.name || `project-${Date.now()}`,
+    status: statuses[Math.floor(Math.random() * statuses.length)],
+    lastDeploy: 'Just now',
+    domain: `${(projectData.name || 'project').toLowerCase().replace(/\s+/g, '-')}.yourdomain.com`,
+    branch: 'main',
+    buildTime: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 60)}s`,
+    visitors: `${(Math.random() * 10).toFixed(1)}k`,
+    framework: frameworks[Math.floor(Math.random() * frameworks.length)],
+    ...projectData,
+    id: '', // Will be set by ProjectDataManager
+    createdAt: '',
+    updatedAt: ''
+  };
+  
+  const createdProject = ProjectDataManager.addProject(newProject);
+  
+  // Update stats
+  DashboardDataManager.incrementStat('activeProjects');
+  DashboardDataManager.incrementStat('monthlyDeploys');
+  
+  return createdProject;
 };
 
 const Index = memo(() => {
+  const { user, isDemoMode } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -238,7 +349,6 @@ const Index = memo(() => {
         setStats(statsData);
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
-        // Handle error state - could show error message to user
       } finally {
         setIsLoading(false);
       }
@@ -246,6 +356,36 @@ const Index = memo(() => {
 
     loadData();
   }, []);
+
+  // Handle project creation
+  const handleCreateProject = async () => {
+    try {
+      const projectName = prompt('Enter project name:');
+      if (!projectName) return;
+      
+      setIsLoading(true);
+      const newProject = await createNewProject({ name: projectName });
+      
+      // Update local state
+      setProjects(prev => [newProject, ...prev]);
+      setStats(prev => ({ ...prev, activeProjects: prev.activeProjects + 1 }));
+      
+      // Add activity
+      if (user) {
+        ActivityDataManager.addActivity({
+          userId: user.id,
+          userName: user.name,
+          action: 'created project',
+          target: newProject.name,
+          type: 'create'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create project:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -256,7 +396,14 @@ const Index = memo(() => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Welcome back, Tech Team!</h1>
+              <h1 className="text-3xl font-bold mb-2">
+                Welcome back, {user?.name || 'Developer'}!
+                {isDemoMode && (
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-600">
+                    Demo Mode
+                  </Badge>
+                )}
+              </h1>
               <p className="text-muted-foreground">
                 Monitor deployments, leverage AI insights, collaborate in real-time, and maintain enterprise security.
               </p>
@@ -266,7 +413,10 @@ const Index = memo(() => {
                 <Brain className="w-4 h-4 mr-2" />
                 AI Analysis
               </Button>
-              <Button className="bg-gradient-to-r from-primary to-primary-glow">
+              <Button 
+                onClick={handleCreateProject}
+                className="bg-gradient-to-r from-primary to-primary-glow"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 New Project
               </Button>
@@ -306,7 +456,11 @@ const Index = memo(() => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column - Projects */}
               <div className="lg:col-span-2 space-y-6">
-                <ProjectList projects={projects} isLoading={isLoading} />
+                <ProjectList 
+                  projects={projects} 
+                  isLoading={isLoading} 
+                  onCreateProject={handleCreateProject}
+                />
                 
                 <Suspense fallback={<ComponentSkeleton />}>
                   <DeploymentPipeline />

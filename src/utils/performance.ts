@@ -234,3 +234,20 @@ export const optimizationUtils = {
     });
   },
 };
+
+// Initialize performance monitoring
+export const initPerformanceMonitoring = () => {
+  if (typeof window !== 'undefined') {
+    // Create global performance monitor instance
+    window.__performanceMonitor = new PerformanceMonitor();
+    
+    // Register service worker for performance caching
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      navigator.serviceWorker.register('/sw.js').catch(error => {
+        console.warn('Service Worker registration failed:', error);
+      });
+    }
+    
+    console.log('Performance monitoring initialized');
+  }
+};
