@@ -61,7 +61,7 @@ export const FileUploadManager: React.FC = () => {
     if (!file.type.startsWith('image/')) return Promise.resolve(undefined);
 
     return new Promise((resolve) => {
-      const img = new Image();
+      const img = document.createElement('img');
       img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
       img.onerror = () => resolve(undefined);
       img.src = URL.createObjectURL(file);
@@ -74,7 +74,7 @@ export const FileUploadManager: React.FC = () => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
-      const img = new Image();
+      const img = document.createElement('img');
 
       img.onload = () => {
         // Calculate new dimensions (max 1920px)
