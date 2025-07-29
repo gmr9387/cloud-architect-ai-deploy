@@ -1,5 +1,5 @@
-import React, { memo, useMemo, useCallback } from "react";
-import { Header } from "@/components/layout/Header";
+import React, { memo, useMemo, useCallback, useState, useEffect } from "react";
+import Header from "@/components/layout/Header";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { AIInsightsPanel } from "@/components/ai/AIInsightsPanel";
 import { DeploymentPipeline } from "@/components/deployment/DeploymentPipeline";
@@ -9,10 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield } from "lucide-react";
-// Production ready - no mock data imports needed
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield, Database } from "lucide-react";
 import { useMemoizedCalculation, usePerformanceMonitoring } from "@/hooks/usePerformanceOptimization";
 import { useAnnouncement } from "@/hooks/useAccessibility";
+import { useAuth } from "@/contexts/AuthContext";
+import { DEMO_MODE, demoProjects, demoAnalytics } from "@/data/demoData";
 
 // Memoized components for performance
 const MemoizedProjectCard = memo(ProjectCard);
@@ -24,14 +27,26 @@ const MemoizedTestRunner = memo(TestRunner);
 const Index: React.FC = () => {
   const { measureFunction } = usePerformanceMonitoring('Dashboard');
   const { announce } = useAnnouncement();
+  const { user, isAuthenticated } = useAuth();
+  const [showDemoData, setShowDemoData] = useState(DEMO_MODE);
 
-  // Production-ready dashboard stats - ready for API integration
-  const dashboardStats = useMemoizedCalculation(() => ({
-    activeProjects: 0, // Connect to your project management API
-    monthlyDeploys: 0, // Connect to your deployment analytics API
-    aiOptimizations: 0, // Connect to your AI optimization service
-    globalUptime: 99.9 // Connect to your monitoring service
-  }), []);
+  // Production-ready dashboard stats with demo fallback
+  const dashboardStats = useMemoizedCalculation(() => {
+    if (showDemoData) {
+      return {
+        activeProjects: demoProjects.length,
+        monthlyDeploys: demoAnalytics.totalDeployments,
+        aiOptimizations: demoAnalytics.aiOptimizationsApplied,
+        globalUptime: 99.9
+      };
+    }
+    return {
+      activeProjects: 0, // Connect to your project management API
+      monthlyDeploys: 0, // Connect to your deployment analytics API
+      aiOptimizations: 0, // Connect to your AI optimization service
+      globalUptime: 99.9 // Connect to your monitoring service
+    };
+  }, [showDemoData]);
 
   const handleNewProject = useCallback(() => {
     measureFunction(() => {
@@ -41,18 +56,8 @@ const Index: React.FC = () => {
     }, 'openNewProjectDialog');
   }, [measureFunction, announce]);
 
-  // Empty state for production - ready for real project data
-  const recentProjects: Array<{
-    id: string;
-    name: string;
-    status: 'building' | 'success' | 'failed' | 'pending';
-    lastDeploy: string;
-    domain: string;
-    branch: string;
-    buildTime: string;
-    visitors: string;
-    aiOptimizations?: number;
-  }> = []; // Connect to your projects API
+  // Demo data toggle for presentation
+  const recentProjects = showDemoData ? demoProjects : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -61,26 +66,38 @@ const Index: React.FC = () => {
       <main className="container mx-auto px-4 py-8" role="main">
         {/* Welcome Section */}
         <section className="mb-8" aria-labelledby="welcome-heading">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
               <h1 
                 id="welcome-heading" 
-                className="text-3xl font-bold mb-2"
+                className="text-2xl lg:text-3xl font-bold mb-2"
               >
-                Welcome back, Tech Team!
+                Welcome back, {user?.name || 'Developer'}!
               </h1>
               <p className="text-muted-foreground">
                 Monitor your deployments, view AI insights, and scale with confidence.
               </p>
             </div>
-            <Button 
-              onClick={handleNewProject}
-              className="bg-gradient-to-r from-primary to-primary-glow"
-              aria-label="Create new project"
-            >
-              <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
-              New Project
-            </Button>
+            <div className="flex items-center space-x-4">
+              {/* Demo Data Toggle */}
+              <div className="flex items-center space-x-2 bg-card/50 border rounded-lg p-3">
+                <Database className="w-4 h-4 text-muted-foreground" />
+                <Label htmlFor="demo-mode" className="text-sm">Demo Data</Label>
+                <Switch 
+                  id="demo-mode"
+                  checked={showDemoData}
+                  onCheckedChange={setShowDemoData}
+                />
+              </div>
+              <Button 
+                onClick={handleNewProject}
+                className="bg-gradient-to-r from-primary to-primary-glow"
+                aria-label="Create new project"
+              >
+                <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
+                New Project
+              </Button>
+            </div>
           </div>
           
           {/* Enhanced Quick Stats */}
