@@ -11,11 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield, Database } from "lucide-react";
+import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield, Database, Sparkles } from "lucide-react";
 import { useMemoizedCalculation, usePerformanceMonitoring } from "@/hooks/usePerformanceOptimization";
 import { useAnnouncement } from "@/hooks/useAccessibility";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEMO_MODE, demoProjects, demoAnalytics } from "@/data/demoData";
+import { ImageProcessor } from "@/components/ai/ImageProcessor";
+import { RealTimeAnalytics } from "@/components/analytics/RealTimeAnalytics";
+import { CodeAnalyzer } from "@/components/tools/CodeAnalyzer";
+import { FileUploadManager } from "@/components/tools/FileUploadManager";
 
 // Memoized components for performance
 const MemoizedProjectCard = memo(ProjectCard);
@@ -164,10 +168,18 @@ const Index: React.FC = () => {
 
         {/* Tabbed Dashboard Content */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+          <TabsList className="grid w-full grid-cols-6 lg:w-[600px]">
             <TabsTrigger value="overview" className="flex items-center space-x-1">
               <Globe className="w-4 h-4" />
               <span>Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai-tools" className="flex items-center space-x-1">
+              <Sparkles className="w-4 h-4" />
+              <span>AI Tools</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center space-x-1">
+              <TrendingUp className="w-4 h-4" />
+              <span>Analytics</span>
             </TabsTrigger>
             <TabsTrigger value="testing" className="flex items-center space-x-1">
               <Shield className="w-4 h-4" />
@@ -179,7 +191,7 @@ const Index: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger value="insights" className="flex items-center space-x-1">
               <Zap className="w-4 h-4" />
-              <span>AI</span>
+              <span>Insights</span>
             </TabsTrigger>
           </TabsList>
 
@@ -233,6 +245,20 @@ const Index: React.FC = () => {
                 </section>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="ai-tools" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ImageProcessor />
+              <div className="space-y-6">
+                <CodeAnalyzer />
+                <FileUploadManager />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <RealTimeAnalytics />
           </TabsContent>
 
           <TabsContent value="testing" className="space-y-6">
