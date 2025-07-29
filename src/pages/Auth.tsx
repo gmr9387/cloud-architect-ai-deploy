@@ -20,27 +20,19 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 
-// Form validation schemas
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
-});
+// Simple form data types without zod validation
+interface LoginFormData {
+  email: string;
+  password: string;
+}
 
-const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string()
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
-type RegisterFormData = z.infer<typeof registerSchema>;
+interface RegisterFormData {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
 
 const Auth: React.FC = () => {
   const { login, register, isLoading } = useAuth();
@@ -48,20 +40,22 @@ const Auth: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const loginForm = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: 'demo@clouddeploy.dev',
       password: 'demo123'
     }
   });
 
-  const registerForm = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema)
-  });
+  const registerForm = useForm<RegisterFormData>();
 
   const handleLogin = async (data: LoginFormData) => {
     try {
       setAuthError(null);
+      // Basic validation
+      if (!data.email || !data.password) {
+        setAuthError('Please fill in all fields');
+        return;
+      }
       await login(data.email, data.password);
       // Redirect will be handled by auth context
     } catch (error) {
@@ -72,6 +66,19 @@ const Auth: React.FC = () => {
   const handleRegister = async (data: RegisterFormData) => {
     try {
       setAuthError(null);
+      // Basic validation
+      if (!data.name || !data.email || !data.password || !data.confirmPassword) {
+        setAuthError('Please fill in all fields');
+        return;
+      }
+      if (data.password !== data.confirmPassword) {
+        setAuthError("Passwords don't match");
+        return;
+      }
+      if (data.password.length < 6) {
+        setAuthError('Password must be at least 6 characters');
+        return;
+      }
       await register(data.email, data.password, data.name);
       // Redirect will be handled by auth context
     } catch (error) {
@@ -181,11 +188,6 @@ const Auth: React.FC = () => {
                           {...loginForm.register('email')}
                         />
                       </div>
-                      {loginForm.formState.errors.email && (
-                        <p className="text-sm text-destructive">
-                          {loginForm.formState.errors.email.message}
-                        </p>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -209,11 +211,6 @@ const Auth: React.FC = () => {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                       </div>
-                      {loginForm.formState.errors.password && (
-                        <p className="text-sm text-destructive">
-                          {loginForm.formState.errors.password.message}
-                        </p>
-                      )}
                     </div>
 
                     <Button 
@@ -239,11 +236,6 @@ const Auth: React.FC = () => {
                           {...registerForm.register('name')}
                         />
                       </div>
-                      {registerForm.formState.errors.name && (
-                        <p className="text-sm text-destructive">
-                          {registerForm.formState.errors.name.message}
-                        </p>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -258,11 +250,6 @@ const Auth: React.FC = () => {
                           {...registerForm.register('email')}
                         />
                       </div>
-                      {registerForm.formState.errors.email && (
-                        <p className="text-sm text-destructive">
-                          {registerForm.formState.errors.email.message}
-                        </p>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -286,11 +273,6 @@ const Auth: React.FC = () => {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                       </div>
-                      {registerForm.formState.errors.password && (
-                        <p className="text-sm text-destructive">
-                          {registerForm.formState.errors.password.message}
-                        </p>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -305,11 +287,6 @@ const Auth: React.FC = () => {
                           {...registerForm.register('confirmPassword')}
                         />
                       </div>
-                      {registerForm.formState.errors.confirmPassword && (
-                        <p className="text-sm text-destructive">
-                          {registerForm.formState.errors.confirmPassword.message}
-                        </p>
-                      )}
                     </div>
 
                     <Button 
