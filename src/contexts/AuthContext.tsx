@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "@/hooks/use-toast";
+import { localStorageService } from '@/services/storage/LocalStorageService';
 
 // User entity following Clean Architecture
 export interface User {
@@ -31,178 +32,58 @@ export interface AuthActions {
 // Combined auth context type
 export type AuthContextType = AuthState & AuthActions;
 
-// Authentication service interface (Interface Adapter)
-export interface AuthService {
-  login(email: string, password: string): Promise<User>;
-  logout(): Promise<void>;
-  register(email: string, password: string, name: string): Promise<User>;
-  getCurrentUser(): Promise<User | null>;
-  updateProfile(userId: string, updates: Partial<Pick<User, 'name' | 'avatar'>>): Promise<User>;
-  refreshToken(): Promise<string>;
-}
-
-// Mock implementation for development
-class MockAuthService implements AuthService {
-  private mockUsers: Array<User & { password: string }> = [
-    {
-      id: '1',
-      email: 'demo@clouddeploy.dev',
-      name: 'Demo User',
-      avatar: '/placeholder.svg',
-      role: 'user',
-      password: 'demo123',
-      createdAt: new Date('2024-01-01'),
-      lastLoginAt: new Date()
-    }
-  ];
-
-  private currentUser: User | null = null;
-  private token: string | null = null;
-
-  async login(email: string, password: string): Promise<User> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const user = this.mockUsers.find(u => u.email === email && u.password === password);
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-
-    this.token = `mock-token-${user.id}`;
-    this.currentUser = {
-      ...user,
-      lastLoginAt: new Date()
-    };
-    
-    localStorage.setItem('auth-token', this.token);
-    localStorage.setItem('auth-user', JSON.stringify(this.currentUser));
-
-    return this.currentUser;
-  }
-
-  async logout(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    this.token = null;
-    this.currentUser = null;
-    localStorage.removeItem('auth-token');
-    localStorage.removeItem('auth-user');
-  }
-
-  async register(email: string, password: string, name: string): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // Check if user already exists
-    if (this.mockUsers.find(u => u.email === email)) {
-      throw new Error('User already exists with this email');
-    }
-
-    const newUser: User & { password: string } = {
-      id: `user_${Date.now()}`,
-      email,
-      name,
-      role: 'user',
-      password,
-      createdAt: new Date(),
-      lastLoginAt: new Date()
-    };
-
-    this.mockUsers.push(newUser);
-    
-    // Auto-login after registration
-    return this.login(email, password);
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    const token = localStorage.getItem('auth-token');
-    const userData = localStorage.getItem('auth-user');
-    
-    if (token && userData) {
-      try {
-        this.currentUser = JSON.parse(userData);
-        this.token = token;
-        return this.currentUser;
-      } catch {
-        localStorage.removeItem('auth-token');
-        localStorage.removeItem('auth-user');
-      }
-    }
-    
-    return null;
-  }
-
-  async updateProfile(userId: string, updates: Partial<Pick<User, 'name' | 'avatar'>>): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    if (!this.currentUser || this.currentUser.id !== userId) {
-      throw new Error('Unauthorized');
-    }
-
-    this.currentUser = { ...this.currentUser, ...updates };
-    localStorage.setItem('auth-user', JSON.stringify(this.currentUser));
-
-    return this.currentUser;
-  }
-
-  async refreshToken(): Promise<string> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    if (!this.token) {
-      throw new Error('No token to refresh');
-    }
-
-    return this.token;
-  }
-}
-
-// Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth provider component
 interface AuthProviderProps {
   children: ReactNode;
-  authService?: AuthService;
 }
 
-export const AuthProvider = ({ 
-  children, 
-  authService = new MockAuthService() 
-}: AuthProviderProps) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize auth state on mount
+  // Check for existing session on mount
   useEffect(() => {
-    const initializeAuth = async () => {
+    const checkSession = async () => {
+      setIsLoading(true);
       try {
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
+        const currentUser = localStorageService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        } else {
+          // Initialize demo data if no users exist
+          await localStorageService.initializeDemoData();
+          const demoUser = localStorageService.getCurrentUser();
+          if (demoUser) {
+            setUser(demoUser);
+          }
+        }
       } catch (error) {
-        console.error('Failed to initialize auth:', error);
+        console.error('Session check failed:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeAuth();
-  }, [authService]);
+    checkSession();
+  }, []);
 
-  // Auth actions
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const user = await authService.login(email, password);
-      setUser(user);
+      const authenticatedUser = await localStorageService.authenticateUser(email, password);
+      localStorageService.setCurrentUser(authenticatedUser);
+      setUser(authenticatedUser);
       
       toast({
-        title: "Login successful",
-        description: `Welcome back, ${user.name}!`,
+        title: "Welcome back!",
+        description: `Successfully logged in as ${authenticatedUser.name}`,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
       toast({
-        title: "Login failed",
-        description: message,
+        title: "Login Failed",
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
@@ -211,83 +92,79 @@ export const AuthProvider = ({
     }
   };
 
-  const logout = async () => {
+  const register = async (email: string, password: string, name: string): Promise<void> => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      await authService.logout();
+      const newUser = await localStorageService.createUser(email, password, name);
+      localStorageService.setCurrentUser(newUser);
+      setUser(newUser);
+      
+      toast({
+        title: "Account Created!",
+        description: `Welcome to CloudDeploy, ${newUser.name}!`,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      localStorageService.setCurrentUser(null);
       setUser(null);
       
       toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
+        title: "Logged Out",
+        description: "You have been successfully logged out",
       });
     } catch (error) {
-      toast({
-        title: "Logout failed",
-        description: "Failed to logout properly.",
-        variant: "destructive",
-      });
+      console.error('Logout error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    try {
-      setIsLoading(true);
-      const user = await authService.register(email, password, name);
-      setUser(user);
-      
-      toast({
-        title: "Registration successful",
-        description: `Welcome to CloudDeploy, ${user.name}!`,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Registration failed';
-      toast({
-        title: "Registration failed",
-        description: message,
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateProfile = async (updates: Partial<Pick<User, 'name' | 'avatar'>>) => {
+  const updateProfile = async (updates: Partial<Pick<User, 'name' | 'avatar'>>): Promise<void> => {
     if (!user) throw new Error('No user logged in');
-
+    
+    setIsLoading(true);
     try {
-      const updatedUser = await authService.updateProfile(user.id, updates);
+      const updatedUser = { ...user, ...updates };
+      localStorageService.setCurrentUser(updatedUser);
       setUser(updatedUser);
       
       toast({
-        title: "Profile updated",
-        description: "Your profile has been successfully updated.",
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Update failed';
+      const errorMessage = error instanceof Error ? error.message : 'Update failed';
       toast({
-        title: "Update failed",
-        description: message,
+        title: "Update Failed",
+        description: errorMessage,
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const refreshSession = async () => {
-    try {
-      await authService.refreshToken();
-    } catch (error) {
-      // Session refresh failed, log out user
-      await logout();
-      throw error;
-    }
+  const refreshSession = async (): Promise<void> => {
+    const currentUser = localStorageService.getCurrentUser();
+    setUser(currentUser);
   };
 
-  const contextValue: AuthContextType = {
+  const value: AuthContextType = {
     user,
     isLoading,
     isAuthenticated: !!user,
@@ -295,18 +172,13 @@ export const AuthProvider = ({
     logout,
     register,
     updateProfile,
-    refreshSession,
+    refreshSession
   };
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Hook to use auth context
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
