@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -16,12 +16,10 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { pipeline, env } from '@huggingface/transformers';
 import { saveAs } from 'file-saver';
 
-// Configure transformers.js
-env.allowLocalModels = false;
-env.useBrowserCache = true;
+// Lazy load the AI processing component to keep the main bundle small
+const AIImageProcessorCore = lazy(() => import('./AIImageProcessorCore'));
 
 interface ProcessedImage {
   id: string;
@@ -43,27 +41,8 @@ export const ImageProcessor: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentOperation, setCurrentOperation] = useState('');
+  const [aiEnabled, setAiEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // AI Models (lazy loaded)
-  const [segmenter, setSegmenter] = useState<any>(null);
-  const [classifier, setClassifier] = useState<any>(null);
-
-  const loadModels = useCallback(async () => {
-    if (!segmenter) {
-      setCurrentOperation('Loading AI models...');
-      setProgress(20);
-      const seg = await pipeline('image-segmentation', 'Xenova/segformer-b0-finetuned-ade-512-512');
-      setSegmenter(seg);
-      setProgress(50);
-    }
-    
-    if (!classifier) {
-      const cls = await pipeline('image-classification', 'Xenova/vit-base-patch16-224');
-      setClassifier(cls);
-      setProgress(80);
-    }
-  }, [segmenter, classifier]);
 
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -72,8 +51,6 @@ export const ImageProcessor: React.FC = () => {
     setProgress(0);
     
     try {
-      await loadModels();
-      
       const processedImages: ProcessedImage[] = [];
       
       for (let i = 0; i < files.length; i++) {
@@ -84,10 +61,9 @@ export const ImageProcessor: React.FC = () => {
         setProgress((i / files.length) * 100);
 
         const imageUrl = URL.createObjectURL(file);
-        const imageElement = await loadImageElement(imageUrl);
         
-        // Analyze image
-        const analysis = await analyzeImage(imageElement);
+        // Basic image analysis without AI for faster processing
+        const analysis = await analyzeImageBasic(file);
         
         const processedImage: ProcessedImage = {
           id: `${Date.now()}-${i}`,
@@ -115,52 +91,36 @@ export const ImageProcessor: React.FC = () => {
         setCurrentOperation('');
       }, 2000);
     }
-  }, [loadModels]);
+  }, []);
 
-  const loadImageElement = (src: string): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
+  // Basic image analysis without AI dependencies
+  const analyzeImageBasic = async (file: File) => {
+    return new Promise<{
+      objects: Array<{ label: string; score: number }>;
+      dominant_colors: string[];
+      quality_score: number;
+      optimization_suggestions: string[];
+    }>((resolve) => {
       const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.crossOrigin = 'anonymous';
-      img.src = src;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const { dominant_colors, quality_score, optimization_suggestions } = analyzeImageData(imageData);
+
+        resolve({
+          objects: [{ label: 'Image uploaded', score: 1.0 }], // Placeholder
+          dominant_colors,
+          quality_score,
+          optimization_suggestions
+        });
+      };
+      img.src = URL.createObjectURL(file);
     });
-  };
-
-  const analyzeImage = async (imageElement: HTMLImageElement) => {
-    try {
-      // Get image classification
-      const classificationResults = await classifier(imageElement);
-      const objects = classificationResults.slice(0, 5).map((result: any) => ({
-        label: result.label,
-        score: Math.round(result.score * 100) / 100
-      }));
-
-      // Analyze image properties
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
-      canvas.width = imageElement.naturalWidth;
-      canvas.height = imageElement.naturalHeight;
-      ctx.drawImage(imageElement, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const { dominant_colors, quality_score, optimization_suggestions } = analyzeImageData(imageData);
-
-      return {
-        objects,
-        dominant_colors,
-        quality_score,
-        optimization_suggestions
-      };
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-      return {
-        objects: [],
-        dominant_colors: [],
-        quality_score: 0,
-        optimization_suggestions: []
-      };
-    }
   };
 
   const analyzeImageData = (imageData: ImageData) => {
@@ -198,85 +158,6 @@ export const ImageProcessor: React.FC = () => {
     optimization_suggestions.push('Convert to WebP format for better compression');
 
     return { dominant_colors, quality_score, optimization_suggestions };
-  };
-
-  const removeBackground = async (imageId: string) => {
-    const image = images.find(img => img.id === imageId);
-    if (!image || !segmenter) return;
-
-    setIsProcessing(true);
-    setCurrentOperation('Removing background...');
-    setProgress(0);
-
-    try {
-      const imageElement = await loadImageElement(image.original);
-      setProgress(30);
-
-      // Create canvas for processing
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
-      
-      // Resize if needed for performance
-      const maxDim = 512;
-      let { width, height } = imageElement;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = (height * maxDim) / width;
-          width = maxDim;
-        } else {
-          width = (width * maxDim) / height;
-          height = maxDim;
-        }
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(imageElement, 0, 0, width, height);
-      setProgress(50);
-
-      // Get segmentation
-      const result = await segmenter(canvas.toDataURL());
-      setProgress(80);
-
-      if (result && result.length > 0 && result[0].mask) {
-        // Apply mask to create transparent background
-        const outputCanvas = document.createElement('canvas');
-        outputCanvas.width = width;
-        outputCanvas.height = height;
-        const outputCtx = outputCanvas.getContext('2d')!;
-
-        outputCtx.drawImage(canvas, 0, 0);
-        const imageData = outputCtx.getImageData(0, 0, width, height);
-        const data = imageData.data;
-
-        // Apply inverted mask to alpha channel
-        for (let i = 0; i < result[0].mask.data.length; i++) {
-          const alpha = Math.round((1 - result[0].mask.data[i]) * 255);
-          data[i * 4 + 3] = alpha;
-        }
-
-        outputCtx.putImageData(imageData, 0, 0);
-        const processedUrl = outputCanvas.toDataURL('image/png');
-
-        setImages(prev => prev.map(img => 
-          img.id === imageId 
-            ? { ...img, processed: processedUrl }
-            : img
-        ));
-      }
-
-      setProgress(100);
-      setCurrentOperation('Background removed!');
-    } catch (error) {
-      console.error('Error removing background:', error);
-      setCurrentOperation('Error removing background');
-    } finally {
-      setIsProcessing(false);
-      setTimeout(() => {
-        setProgress(0);
-        setCurrentOperation('');
-      }, 2000);
-    }
   };
 
   const optimizeImage = async (imageId: string) => {
@@ -335,6 +216,16 @@ export const ImageProcessor: React.FC = () => {
     }
   };
 
+  const loadImageElement = (src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.crossOrigin = 'anonymous';
+      img.src = src;
+    });
+  };
+
   const downloadImage = (imageUrl: string, filename: string) => {
     fetch(imageUrl)
       .then(response => response.blob())
@@ -349,178 +240,157 @@ export const ImageProcessor: React.FC = () => {
       : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const enableAI = () => {
+    setAiEnabled(true);
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Zap className="w-5 h-5 text-ai-primary" />
-          <span>AI Image Processor</span>
-          <Badge variant="secondary" className="bg-ai-primary/10 text-ai-primary">
-            Real AI
-          </Badge>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Zap className="w-5 h-5 text-ai-primary" />
+            <span>Image Processor</span>
+            {aiEnabled ? (
+              <Badge variant="secondary" className="bg-ai-primary/10 text-ai-primary">
+                AI Enabled
+              </Badge>
+            ) : (
+              <Badge variant="outline">
+                Basic Mode
+              </Badge>
+            )}
+          </div>
+          {!aiEnabled && (
+            <Button variant="outline" size="sm" onClick={enableAI}>
+              Enable AI Features
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Upload Area */}
-        <div
-          className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={(e) => {
-            e.preventDefault();
-            handleFileUpload(e.dataTransfer.files);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-        >
-          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="font-semibold mb-2">Upload Images for AI Processing</h3>
-          <p className="text-muted-foreground mb-4">
-            Drag & drop images or click to select
-          </p>
-          <Button variant="outline">
-            <FileImage className="w-4 h-4 mr-2" />
-            Select Images
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleFileUpload(e.target.files)}
-          />
-        </div>
-
-        {/* Progress */}
-        {isProcessing && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">{currentOperation}</span>
-              <span className="text-sm text-muted-foreground">{progress.toFixed(0)}%</span>
+        {aiEnabled ? (
+          <Suspense fallback={
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="w-8 h-8 animate-spin mr-2" />
+              <span>Loading AI capabilities...</span>
             </div>
-            <Progress value={progress} className="w-full" />
-          </div>
-        )}
+          }>
+            <AIImageProcessorCore 
+              images={images}
+              setImages={setImages}
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+              progress={progress}
+              setProgress={setProgress}
+              currentOperation={currentOperation}
+              setCurrentOperation={setCurrentOperation}
+            />
+          </Suspense>
+        ) : (
+          <>
+            {/* Upload Area */}
+            <div
+              className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleFileUpload(e.dataTransfer.files);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="font-semibold mb-2">Upload Images for Processing</h3>
+              <p className="text-muted-foreground mb-4">
+                Drag & drop images or click to select. Enable AI for advanced features.
+              </p>
+              <Button variant="outline">
+                <FileImage className="w-4 h-4 mr-2" />
+                Select Images
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+            </div>
 
-        {/* Images Grid */}
-        {images.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="font-semibold">Processed Images ({images.length})</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {images.map((image) => (
-                <Card key={image.id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <Tabs defaultValue="preview" className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="preview">Preview</TabsTrigger>
-                        <TabsTrigger value="analysis">Analysis</TabsTrigger>
-                        <TabsTrigger value="actions">Actions</TabsTrigger>
-                      </TabsList>
+            {/* Progress */}
+            {isProcessing && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{currentOperation}</span>
+                  <span className="text-sm text-muted-foreground">{progress.toFixed(0)}%</span>
+                </div>
+                <Progress value={progress} className="w-full" />
+              </div>
+            )}
 
-                      <TabsContent value="preview" className="space-y-4">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-sm font-medium mb-2">Original</p>
-                            <img
-                              src={image.original}
-                              alt="Original"
-                              className="w-full h-32 object-cover rounded border"
-                            />
-                          </div>
-                          {image.processed && (
+            {/* Images Grid - Basic Mode */}
+            {images.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="font-semibold">Processed Images ({images.length})</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {images.map((image) => (
+                    <Card key={image.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <p className="text-sm font-medium mb-2">Processed</p>
+                              <p className="text-sm font-medium mb-2">Original</p>
                               <img
-                                src={image.processed}
-                                alt="Processed"
+                                src={image.original}
+                                alt="Original"
                                 className="w-full h-32 object-cover rounded border"
                               />
                             </div>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <p>{image.filename}</p>
-                          <p>{formatFileSize(image.size)} • {image.type}</p>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="analysis" className="space-y-4">
-                        {image.analysis && (
-                          <>
-                            <div>
-                              <h4 className="font-medium mb-2">Detected Objects</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {image.analysis.objects.map((obj, idx) => (
-                                  <Badge key={idx} variant="outline" className="text-xs">
-                                    {obj.label} ({(obj.score * 100).toFixed(0)}%)
-                                  </Badge>
-                                ))}
+                            {image.processed && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Processed</p>
+                                <img
+                                  src={image.processed}
+                                  alt="Processed"
+                                  className="w-full h-32 object-cover rounded border"
+                                />
                               </div>
-                            </div>
-
-                            <div>
-                              <h4 className="font-medium mb-2">Quality Score</h4>
-                              <div className="flex items-center space-x-2">
-                                <Progress value={image.analysis.quality_score} className="flex-1" />
-                                <span className="text-sm">{image.analysis.quality_score.toFixed(0)}%</span>
-                              </div>
-                            </div>
-
-                            <div>
-                              <h4 className="font-medium mb-2">Optimization Suggestions</h4>
-                              <div className="space-y-1">
-                                {image.analysis.optimization_suggestions.map((suggestion, idx) => (
-                                  <Alert key={idx} className="py-2">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <AlertDescription className="text-xs">
-                                      {suggestion}
-                                    </AlertDescription>
-                                  </Alert>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </TabsContent>
-
-                      <TabsContent value="actions" className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeBackground(image.id)}
-                            disabled={isProcessing}
-                          >
-                            <Scissors className="w-4 h-4 mr-2" />
-                            Remove BG
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => optimizeImage(image.id)}
-                            disabled={isProcessing}
-                          >
-                            <Zap className="w-4 h-4 mr-2" />
-                            Optimize
-                          </Button>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            <p>{image.filename}</p>
+                            <p>{formatFileSize(image.size)} • {image.type}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => optimizeImage(image.id)}
+                              disabled={isProcessing}
+                            >
+                              <Zap className="w-4 h-4 mr-2" />
+                              Optimize
+                            </Button>
+                            {image.processed && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => downloadImage(image.processed!, `processed_${image.filename}`)}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        {image.processed && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => downloadImage(image.processed!, `processed_${image.filename}`)}
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download Result
-                          </Button>
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
