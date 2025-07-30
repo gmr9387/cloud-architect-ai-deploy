@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield, Database, Sparkles } from "lucide-react";
+import { Plus, GitBranch, Zap, TrendingUp, Users, Globe, Shield, Database, Sparkles, Brain, Server, Code } from "lucide-react";
 import { useMemoizedCalculation, usePerformanceMonitoring } from "@/hooks/usePerformanceOptimization";
 import { useAnnouncement } from "@/hooks/useAccessibility";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,11 @@ import { ImageProcessor } from "@/components/ai/ImageProcessor";
 import { RealTimeAnalytics } from "@/components/analytics/RealTimeAnalytics";
 import { CodeAnalyzer } from "@/components/tools/CodeAnalyzer";
 import { FileUploadManager } from "@/components/tools/FileUploadManager";
+import SmartDeploymentAutomation from "@/components/deployment/SmartDeploymentAutomation";
+import RealTimeCollaboration from "@/components/collaboration/RealTimeCollaboration";
+import MultiEnvironmentManager from "@/components/environment/MultiEnvironmentManager";
+import UsageAnalytics from "@/components/analytics/UsageAnalytics";
+import DeveloperExperienceTools from "@/components/developer/DeveloperExperienceTools";
 
 // Memoized components for performance
 const MemoizedProjectCard = memo(ProjectCard);
@@ -168,30 +173,38 @@ const Index: React.FC = () => {
 
         {/* Tabbed Dashboard Content */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 lg:w-[600px]">
+          <TabsList className="grid w-full grid-cols-8 lg:w-[800px]">
             <TabsTrigger value="overview" className="flex items-center space-x-1">
               <Globe className="w-4 h-4" />
               <span>Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="ai-tools" className="flex items-center space-x-1">
-              <Sparkles className="w-4 h-4" />
-              <span>AI Tools</span>
+            <TabsTrigger value="smart-deploy" className="flex items-center space-x-1">
+              <Brain className="w-4 h-4" />
+              <span>Smart Deploy</span>
+            </TabsTrigger>
+            <TabsTrigger value="collaboration" className="flex items-center space-x-1">
+              <Users className="w-4 h-4" />
+              <span>Team</span>
+            </TabsTrigger>
+            <TabsTrigger value="environments" className="flex items-center space-x-1">
+              <Server className="w-4 h-4" />
+              <span>Environments</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center space-x-1">
               <TrendingUp className="w-4 h-4" />
               <span>Analytics</span>
             </TabsTrigger>
+            <TabsTrigger value="ai-tools" className="flex items-center space-x-1">
+              <Sparkles className="w-4 h-4" />
+              <span>AI Tools</span>
+            </TabsTrigger>
+            <TabsTrigger value="developer" className="flex items-center space-x-1">
+              <Code className="w-4 h-4" />
+              <span>Developer</span>
+            </TabsTrigger>
             <TabsTrigger value="testing" className="flex items-center space-x-1">
               <Shield className="w-4 h-4" />
               <span>Testing</span>
-            </TabsTrigger>
-            <TabsTrigger value="team" className="flex items-center space-x-1">
-              <Users className="w-4 h-4" />
-              <span>Team</span>
-            </TabsTrigger>
-            <TabsTrigger value="insights" className="flex items-center space-x-1">
-              <Zap className="w-4 h-4" />
-              <span>Insights</span>
             </TabsTrigger>
           </TabsList>
 
@@ -247,6 +260,22 @@ const Index: React.FC = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="smart-deploy" className="space-y-6">
+            <SmartDeploymentAutomation />
+          </TabsContent>
+
+          <TabsContent value="collaboration" className="space-y-6">
+            <RealTimeCollaboration />
+          </TabsContent>
+
+          <TabsContent value="environments" className="space-y-6">
+            <MultiEnvironmentManager />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <UsageAnalytics />
+          </TabsContent>
+
           <TabsContent value="ai-tools" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <ImageProcessor />
@@ -257,8 +286,8 @@ const Index: React.FC = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="analytics" className="space-y-6">
-            <RealTimeAnalytics />
+          <TabsContent value="developer" className="space-y-6">
+            <DeveloperExperienceTools />
           </TabsContent>
 
           <TabsContent value="testing" className="space-y-6">
@@ -266,26 +295,6 @@ const Index: React.FC = () => {
               <h2 id="testing-heading" className="text-xl font-semibold mb-4">Testing Infrastructure</h2>
               <MemoizedTestRunner />
             </section>
-          </TabsContent>
-
-          <TabsContent value="team" className="space-y-6">
-            <section aria-labelledby="team-heading">
-              <h2 id="team-heading" className="text-xl font-semibold mb-4">Team Management</h2>
-              <Card>
-                <CardContent className="p-6">
-                  <p className="text-muted-foreground text-center">
-                    Team management features coming soon. Connect to Supabase for user management.
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="insights" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MemoizedAIInsightsPanel />
-              <MemoizedPerformanceMetrics />
-            </div>
           </TabsContent>
         </Tabs>
       </main>
