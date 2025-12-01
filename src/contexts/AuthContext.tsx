@@ -1,20 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from "@/hooks/use-toast";
 
-// User entity following Clean Architecture
-export interface User {
+// Profile type from database
+export interface Profile {
   id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  role: 'user' | 'admin';
-  createdAt: Date;
-  lastLoginAt: Date;
+  username: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Authentication state
 export interface AuthState {
   user: User | null;
+  session: Session | null;
+  profile: Profile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -23,137 +25,12 @@ export interface AuthState {
 export interface AuthActions {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  updateProfile: (updates: Partial<Pick<User, 'name' | 'avatar'>>) => Promise<void>;
-  refreshSession: () => Promise<void>;
+  register: (email: string, password: string, username?: string) => Promise<void>;
+  updateProfile: (updates: Partial<Pick<Profile, 'username' | 'avatar_url'>>) => Promise<void>;
 }
 
 // Combined auth context type
 export type AuthContextType = AuthState & AuthActions;
-
-// Authentication service interface (Interface Adapter)
-export interface AuthService {
-  login(email: string, password: string): Promise<User>;
-  logout(): Promise<void>;
-  register(email: string, password: string, name: string): Promise<User>;
-  getCurrentUser(): Promise<User | null>;
-  updateProfile(userId: string, updates: Partial<Pick<User, 'name' | 'avatar'>>): Promise<User>;
-  refreshToken(): Promise<string>;
-}
-
-// Mock implementation for development
-class MockAuthService implements AuthService {
-  private mockUsers: Array<User & { password: string }> = [
-    {
-      id: '1',
-      email: 'demo@clouddeploy.dev',
-      name: 'Demo User',
-      avatar: '/placeholder.svg',
-      role: 'user',
-      password: 'demo123',
-      createdAt: new Date('2024-01-01'),
-      lastLoginAt: new Date()
-    }
-  ];
-
-  private currentUser: User | null = null;
-  private token: string | null = null;
-
-  async login(email: string, password: string): Promise<User> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const user = this.mockUsers.find(u => u.email === email && u.password === password);
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-
-    this.token = `mock-token-${user.id}`;
-    this.currentUser = {
-      ...user,
-      lastLoginAt: new Date()
-    };
-    
-    localStorage.setItem('auth-token', this.token);
-    localStorage.setItem('auth-user', JSON.stringify(this.currentUser));
-
-    return this.currentUser;
-  }
-
-  async logout(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    this.token = null;
-    this.currentUser = null;
-    localStorage.removeItem('auth-token');
-    localStorage.removeItem('auth-user');
-  }
-
-  async register(email: string, password: string, name: string): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // Check if user already exists
-    if (this.mockUsers.find(u => u.email === email)) {
-      throw new Error('User already exists with this email');
-    }
-
-    const newUser: User & { password: string } = {
-      id: `user_${Date.now()}`,
-      email,
-      name,
-      role: 'user',
-      password,
-      createdAt: new Date(),
-      lastLoginAt: new Date()
-    };
-
-    this.mockUsers.push(newUser);
-    
-    // Auto-login after registration
-    return this.login(email, password);
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    const token = localStorage.getItem('auth-token');
-    const userData = localStorage.getItem('auth-user');
-    
-    if (token && userData) {
-      try {
-        this.currentUser = JSON.parse(userData);
-        this.token = token;
-        return this.currentUser;
-      } catch {
-        localStorage.removeItem('auth-token');
-        localStorage.removeItem('auth-user');
-      }
-    }
-    
-    return null;
-  }
-
-  async updateProfile(userId: string, updates: Partial<Pick<User, 'name' | 'avatar'>>): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    if (!this.currentUser || this.currentUser.id !== userId) {
-      throw new Error('Unauthorized');
-    }
-
-    this.currentUser = { ...this.currentUser, ...updates };
-    localStorage.setItem('auth-user', JSON.stringify(this.currentUser));
-
-    return this.currentUser;
-  }
-
-  async refreshToken(): Promise<string> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    if (!this.token) {
-      throw new Error('No token to refresh');
-    }
-
-    return this.token;
-  }
-}
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,42 +38,80 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Auth provider component
 interface AuthProviderProps {
   children: ReactNode;
-  authService?: AuthService;
 }
 
-export const AuthProvider = ({ 
-  children, 
-  authService = new MockAuthService() 
-}: AuthProviderProps) => {
+export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch user profile
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   // Initialize auth state on mount
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-      } finally {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        // Defer profile fetch with setTimeout to avoid deadlock
+        if (session?.user) {
+          setTimeout(() => {
+            fetchProfile(session.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+        }
+        
         setIsLoading(false);
       }
-    };
+    );
 
-    initializeAuth();
-  }, [authService]);
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      }
+      
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Auth actions
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const user = await authService.login(email, password);
-      setUser(user);
-      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.name}!`,
+        description: `Welcome back!`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';
@@ -214,9 +129,13 @@ export const AuthProvider = ({
   const logout = async () => {
     try {
       setIsLoading(true);
-      await authService.logout();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
       setUser(null);
-      
+      setSession(null);
+      setProfile(null);
+
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
@@ -232,36 +151,66 @@ export const AuthProvider = ({
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, username?: string) => {
     try {
       setIsLoading(true);
-      const user = await authService.register(email, password, name);
-      setUser(user);
+      const redirectUrl = `${window.location.origin}/`;
       
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            username: username || email.split('@')[0],
+          },
+        },
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Registration successful",
-        description: `Welcome to CloudDeploy, ${user.name}!`,
+        description: "Welcome to CloudDeploy!",
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Registration failed';
-      toast({
-        title: "Registration failed",
-        description: message,
-        variant: "destructive",
-      });
+      
+      // Handle specific error cases
+      if (message.includes('already registered')) {
+        toast({
+          title: "Registration failed",
+          description: "An account with this email already exists. Please sign in instead.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration failed",
+          description: message,
+          variant: "destructive",
+        });
+      }
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateProfile = async (updates: Partial<Pick<User, 'name' | 'avatar'>>) => {
+  const updateProfile = async (updates: Partial<Pick<Profile, 'username' | 'avatar_url'>>) => {
     if (!user) throw new Error('No user logged in');
 
     try {
-      const updatedUser = await authService.updateProfile(user.id, updates);
-      setUser(updatedUser);
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
       
+      setProfile(data);
+
       toast({
         title: "Profile updated",
         description: "Your profile has been successfully updated.",
@@ -277,25 +226,16 @@ export const AuthProvider = ({
     }
   };
 
-  const refreshSession = async () => {
-    try {
-      await authService.refreshToken();
-    } catch (error) {
-      // Session refresh failed, log out user
-      await logout();
-      throw error;
-    }
-  };
-
   const contextValue: AuthContextType = {
     user,
+    session,
+    profile,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: !!session,
     login,
     logout,
     register,
     updateProfile,
-    refreshSession,
   };
 
   return (
@@ -319,11 +259,17 @@ export const RequireAuth = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
-    // In a real app, this would redirect to login
     return <div className="min-h-screen flex items-center justify-center">Please log in</div>;
   }
 

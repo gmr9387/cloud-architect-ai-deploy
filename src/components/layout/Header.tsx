@@ -21,7 +21,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Header: React.FC = () => {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, profile, logout, isAuthenticated } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -75,13 +75,13 @@ const Header: React.FC = () => {
                       aria-label="User menu"
                     >
                       <Avatar className="w-8 h-8">
-                        <AvatarImage src={user?.avatar || "/placeholder.svg"} alt="User avatar" />
+                        <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt="User avatar" />
                         <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {user?.name?.slice(0, 2).toUpperCase() || 'U'}
+                          {profile?.username?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <span className="hidden md:block text-sm font-medium">
-                        {user?.name || 'User'}
+                        {profile?.username || user?.email?.split('@')[0] || 'User'}
                       </span>
                       <ChevronDown className="w-4 h-4" aria-hidden="true" />
                     </Button>
