@@ -20,44 +20,49 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 
-// Simple form data types without zod validation
-interface LoginFormData {
-  email: string;
-  password: string;
-}
+// Validation schemas
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
-interface RegisterFormData {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
+const registerSchema = z.object({
+  username: z.string().min(2, 'Username must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 const Auth: React.FC = () => {
-  const { login, register, isLoading } = useAuth();
+  const { login, register: registerUser, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'demo@clouddeploy.dev',
-      password: 'demo123'
+      email: '',
+      password: ''
     }
   });
 
-  const registerForm = useForm<RegisterFormData>();
+  const registerForm = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+  });
 
   const handleLogin = async (data: LoginFormData) => {
     try {
       setAuthError(null);
-      // Basic validation
-      if (!data.email || !data.password) {
-        setAuthError('Please fill in all fields');
-        return;
-      }
       await login(data.email, data.password);
-      // Redirect will be handled by auth context
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Login failed');
     }
@@ -66,21 +71,7 @@ const Auth: React.FC = () => {
   const handleRegister = async (data: RegisterFormData) => {
     try {
       setAuthError(null);
-      // Basic validation
-      if (!data.name || !data.email || !data.password || !data.confirmPassword) {
-        setAuthError('Please fill in all fields');
-        return;
-      }
-      if (data.password !== data.confirmPassword) {
-        setAuthError("Passwords don't match");
-        return;
-      }
-      if (data.password.length < 6) {
-        setAuthError('Password must be at least 6 characters');
-        return;
-      }
-      await register(data.email, data.password, data.name);
-      // Redirect will be handled by auth context
+      await registerUser(data.email, data.password, data.username);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Registration failed');
     }
@@ -93,10 +84,10 @@ const Auth: React.FC = () => {
         <div className="space-y-8 text-center lg:text-left">
           <div className="space-y-4">
             <div className="flex items-center justify-center lg:justify-start space-x-2">
-              <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary-glow rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary/70 rounded-lg flex items-center justify-center">
                 <GitBranch className="w-6 h-6 text-primary-foreground" />
               </div>
-              <h1 className="text-2xl font-bold gradient-text-primary">CloudDeploy</h1>
+              <h1 className="text-2xl font-bold text-primary">CloudDeploy</h1>
             </div>
             <h2 className="text-3xl lg:text-4xl font-bold">
               Deploy with confidence
@@ -106,34 +97,22 @@ const Auth: React.FC = () => {
             </p>
           </div>
 
-          {/* Demo Credentials */}
-          <Alert className="border-primary/20 bg-primary/5">
-            <Shield className="w-4 h-4" />
-            <AlertDescription className="space-y-2">
-              <strong>Demo Credentials (Pre-filled):</strong>
-              <div className="text-sm space-y-1">
-                <div>Email: demo@clouddeploy.dev</div>
-                <div>Password: demo123</div>
-              </div>
-            </AlertDescription>
-          </Alert>
-
           {/* Feature highlights */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-status-success" />
+              <CheckCircle className="w-5 h-5 text-green-500" />
               <span className="text-sm">AI Optimization</span>
             </div>
             <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-status-success" />
+              <CheckCircle className="w-5 h-5 text-green-500" />
               <span className="text-sm">Real-time Monitoring</span>
             </div>
             <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-status-success" />
+              <CheckCircle className="w-5 h-5 text-green-500" />
               <span className="text-sm">Global CDN</span>
             </div>
             <div className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-status-success" />
+              <CheckCircle className="w-5 h-5 text-green-500" />
               <span className="text-sm">99.9% Uptime</span>
             </div>
           </div>
@@ -145,11 +124,11 @@ const Auth: React.FC = () => {
               <div className="text-sm text-muted-foreground">Deployments</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-ai-primary">99.9%</div>
+              <div className="text-2xl font-bold text-blue-500">99.9%</div>
               <div className="text-sm text-muted-foreground">Uptime</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-status-success">50K+</div>
+              <div className="text-2xl font-bold text-green-500">50K+</div>
               <div className="text-sm text-muted-foreground">Developers</div>
             </div>
           </div>
@@ -157,7 +136,7 @@ const Auth: React.FC = () => {
 
         {/* Right Column - Auth Forms */}
         <div className="w-full max-w-md mx-auto">
-          <Card className="glass-card">
+          <Card className="border-border/50 shadow-xl">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl">Get Started</CardTitle>
             </CardHeader>
@@ -183,11 +162,14 @@ const Auth: React.FC = () => {
                         <Input
                           id="login-email"
                           type="email"
-                          placeholder="demo@clouddeploy.dev"
+                          placeholder="Enter your email"
                           className="pl-10"
                           {...loginForm.register('email')}
                         />
                       </div>
+                      {loginForm.formState.errors.email && (
+                        <p className="text-sm text-destructive">{loginForm.formState.errors.email.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -211,11 +193,14 @@ const Auth: React.FC = () => {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                       </div>
+                      {loginForm.formState.errors.password && (
+                        <p className="text-sm text-destructive">{loginForm.formState.errors.password.message}</p>
+                      )}
                     </div>
 
                     <Button 
                       type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-primary-glow"
+                      className="w-full"
                       disabled={isLoading}
                     >
                       {isLoading ? 'Signing In...' : 'Sign In'}
@@ -226,16 +211,19 @@ const Auth: React.FC = () => {
                 <TabsContent value="register" className="space-y-4">
                   <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="register-name">Full Name</Label>
+                      <Label htmlFor="register-username">Username</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                         <Input
-                          id="register-name"
-                          placeholder="Enter your full name"
+                          id="register-username"
+                          placeholder="Choose a username"
                           className="pl-10"
-                          {...registerForm.register('name')}
+                          {...registerForm.register('username')}
                         />
                       </div>
+                      {registerForm.formState.errors.username && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.username.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -250,6 +238,9 @@ const Auth: React.FC = () => {
                           {...registerForm.register('email')}
                         />
                       </div>
+                      {registerForm.formState.errors.email && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.email.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -273,6 +264,9 @@ const Auth: React.FC = () => {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                       </div>
+                      {registerForm.formState.errors.password && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.password.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -287,11 +281,14 @@ const Auth: React.FC = () => {
                           {...registerForm.register('confirmPassword')}
                         />
                       </div>
+                      {registerForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-destructive">{registerForm.formState.errors.confirmPassword.message}</p>
+                      )}
                     </div>
 
                     <Button 
                       type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-primary-glow"
+                      className="w-full"
                       disabled={isLoading}
                     >
                       {isLoading ? 'Creating Account...' : 'Create Account'}

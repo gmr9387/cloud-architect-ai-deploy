@@ -31,7 +31,7 @@ const MemoizedTestRunner = memo(TestRunner);
 const Index: React.FC = () => {
   const { measureFunction } = usePerformanceMonitoring('Dashboard');
   const { announce } = useAnnouncement();
-  const { user, isAuthenticated } = useAuth();
+  const { user, profile, isAuthenticated } = useAuth();
   const [showDemoData, setShowDemoData] = useState(DEMO_MODE);
 
   // Production-ready dashboard stats with demo fallback
@@ -76,7 +76,7 @@ const Index: React.FC = () => {
                 id="welcome-heading" 
                 className="text-2xl lg:text-3xl font-bold mb-2"
               >
-                Welcome back, {user?.name || 'Developer'}!
+                Welcome back, {profile?.username || user?.email?.split('@')[0] || 'Developer'}!
               </h1>
               <p className="text-muted-foreground">
                 Monitor your deployments, view AI insights, and scale with confidence.
