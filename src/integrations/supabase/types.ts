@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      environments: {
+        Row: {
+          config_status: Database["public"]["Enums"]["readiness_status"]
+          created_at: string
+          database_status: Database["public"]["Enums"]["readiness_status"]
+          environment_kind: Database["public"]["Enums"]["environment_kind"]
+          id: string
+          monitoring_status: Database["public"]["Enums"]["readiness_status"]
+          notes: string | null
+          risk_score: number
+          secrets_status: Database["public"]["Enums"]["readiness_status"]
+          topology_id: string
+          updated_at: string
+          worker_status: Database["public"]["Enums"]["readiness_status"]
+        }
+        Insert: {
+          config_status?: Database["public"]["Enums"]["readiness_status"]
+          created_at?: string
+          database_status?: Database["public"]["Enums"]["readiness_status"]
+          environment_kind: Database["public"]["Enums"]["environment_kind"]
+          id?: string
+          monitoring_status?: Database["public"]["Enums"]["readiness_status"]
+          notes?: string | null
+          risk_score?: number
+          secrets_status?: Database["public"]["Enums"]["readiness_status"]
+          topology_id: string
+          updated_at?: string
+          worker_status?: Database["public"]["Enums"]["readiness_status"]
+        }
+        Update: {
+          config_status?: Database["public"]["Enums"]["readiness_status"]
+          created_at?: string
+          database_status?: Database["public"]["Enums"]["readiness_status"]
+          environment_kind?: Database["public"]["Enums"]["environment_kind"]
+          id?: string
+          monitoring_status?: Database["public"]["Enums"]["readiness_status"]
+          notes?: string | null
+          risk_score?: number
+          secrets_status?: Database["public"]["Enums"]["readiness_status"]
+          topology_id?: string
+          updated_at?: string
+          worker_status?: Database["public"]["Enums"]["readiness_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "environments_topology_id_fkey"
+            columns: ["topology_id"]
+            isOneToOne: false
+            referencedRelation: "topologies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -77,15 +130,245 @@ export type Database = {
         }
         Relationships: []
       }
+      service_dependencies: {
+        Row: {
+          created_at: string
+          dependency_type: Database["public"]["Enums"]["dependency_type"]
+          from_service_id: string
+          id: string
+          notes: string | null
+          to_service_id: string
+          topology_id: string
+        }
+        Insert: {
+          created_at?: string
+          dependency_type?: Database["public"]["Enums"]["dependency_type"]
+          from_service_id: string
+          id?: string
+          notes?: string | null
+          to_service_id: string
+          topology_id: string
+        }
+        Update: {
+          created_at?: string
+          dependency_type?: Database["public"]["Enums"]["dependency_type"]
+          from_service_id?: string
+          id?: string
+          notes?: string | null
+          to_service_id?: string
+          topology_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_dependencies_from_service_id_fkey"
+            columns: ["from_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_dependencies_to_service_id_fkey"
+            columns: ["to_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_dependencies_topology_id_fkey"
+            columns: ["topology_id"]
+            isOneToOne: false
+            referencedRelation: "topologies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_environment_state: {
+        Row: {
+          config_status: Database["public"]["Enums"]["readiness_status"]
+          created_at: string
+          deployment_status: Database["public"]["Enums"]["readiness_status"]
+          environment_id: string
+          id: string
+          last_deployed_at: string | null
+          notes: string | null
+          observability_status: Database["public"]["Enums"]["coverage_status"]
+          secrets_status: Database["public"]["Enums"]["readiness_status"]
+          service_id: string
+          topology_id: string
+          updated_at: string
+        }
+        Insert: {
+          config_status?: Database["public"]["Enums"]["readiness_status"]
+          created_at?: string
+          deployment_status?: Database["public"]["Enums"]["readiness_status"]
+          environment_id: string
+          id?: string
+          last_deployed_at?: string | null
+          notes?: string | null
+          observability_status?: Database["public"]["Enums"]["coverage_status"]
+          secrets_status?: Database["public"]["Enums"]["readiness_status"]
+          service_id: string
+          topology_id: string
+          updated_at?: string
+        }
+        Update: {
+          config_status?: Database["public"]["Enums"]["readiness_status"]
+          created_at?: string
+          deployment_status?: Database["public"]["Enums"]["readiness_status"]
+          environment_id?: string
+          id?: string
+          last_deployed_at?: string | null
+          notes?: string | null
+          observability_status?: Database["public"]["Enums"]["coverage_status"]
+          secrets_status?: Database["public"]["Enums"]["readiness_status"]
+          service_id?: string
+          topology_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_environment_state_environment_id_fkey"
+            columns: ["environment_id"]
+            isOneToOne: false
+            referencedRelation: "environments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_environment_state_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_environment_state_topology_id_fkey"
+            columns: ["topology_id"]
+            isOneToOne: false
+            referencedRelation: "topologies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          created_at: string
+          description: string | null
+          health_check_path: string | null
+          hosting_rationale: string | null
+          hosting_target: string | null
+          id: string
+          name: string
+          observability_requirements: string[]
+          readiness_status: Database["public"]["Enums"]["readiness_status"]
+          region: string | null
+          required_secrets: string[]
+          runtime: string | null
+          scaling_profile: string | null
+          service_type: Database["public"]["Enums"]["service_type"]
+          topology_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          health_check_path?: string | null
+          hosting_rationale?: string | null
+          hosting_target?: string | null
+          id?: string
+          name: string
+          observability_requirements?: string[]
+          readiness_status?: Database["public"]["Enums"]["readiness_status"]
+          region?: string | null
+          required_secrets?: string[]
+          runtime?: string | null
+          scaling_profile?: string | null
+          service_type: Database["public"]["Enums"]["service_type"]
+          topology_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          health_check_path?: string | null
+          hosting_rationale?: string | null
+          hosting_target?: string | null
+          id?: string
+          name?: string
+          observability_requirements?: string[]
+          readiness_status?: Database["public"]["Enums"]["readiness_status"]
+          region?: string | null
+          required_secrets?: string[]
+          runtime?: string | null
+          scaling_profile?: string | null
+          service_type?: Database["public"]["Enums"]["service_type"]
+          topology_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_topology_id_fkey"
+            columns: ["topology_id"]
+            isOneToOne: false
+            referencedRelation: "topologies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      topologies: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          system_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          system_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          system_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      user_owns_topology: { Args: { _topology_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      coverage_status: "covered" | "partial" | "missing" | "not_required"
+      dependency_type: "sync" | "async" | "data" | "secret"
+      environment_kind: "local" | "development" | "staging" | "production"
+      readiness_status: "ready" | "partial" | "blocked" | "missing"
+      service_type:
+        | "frontend"
+        | "api"
+        | "worker"
+        | "edge_function"
+        | "database"
+        | "storage"
+        | "queue"
+        | "telemetry"
+        | "vault"
+        | "webhook_ingress"
+        | "scheduler"
+        | "observability"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -212,6 +495,25 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      coverage_status: ["covered", "partial", "missing", "not_required"],
+      dependency_type: ["sync", "async", "data", "secret"],
+      environment_kind: ["local", "development", "staging", "production"],
+      readiness_status: ["ready", "partial", "blocked", "missing"],
+      service_type: [
+        "frontend",
+        "api",
+        "worker",
+        "edge_function",
+        "database",
+        "storage",
+        "queue",
+        "telemetry",
+        "vault",
+        "webhook_ingress",
+        "scheduler",
+        "observability",
+      ],
+    },
   },
 } as const

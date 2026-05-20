@@ -40,10 +40,11 @@ const Header: React.FC = () => {
             <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary-glow rounded-lg flex items-center justify-center">
               <GitBranch className="w-5 h-5 text-primary-foreground" aria-hidden="true" />
             </div>
-            <h1 className="text-xl font-bold gradient-text-primary">CloudDeploy</h1>
-            <Badge variant="secondary" className="text-xs bg-ai-primary/10 text-ai-primary border-ai-primary/20">
-              Pro
-            </Badge>
+            <div>
+              <h1 className="text-base font-bold leading-tight">Cloud Architect Deploy</h1>
+              <p className="text-[10px] text-muted-foreground leading-tight">Deployment command center</p>
+            </div>
+            <Badge variant="outline" className="text-[10px] ml-1 hidden sm:inline-flex">Phase 1</Badge>
           </div>
 
           {/* Right side */}
