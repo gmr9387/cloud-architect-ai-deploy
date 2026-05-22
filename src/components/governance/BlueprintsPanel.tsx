@@ -177,7 +177,7 @@ export const BlueprintsPanel: React.FC<{ topology: Topology }> = ({ topology }) 
             <Button
               onClick={async () => {
                 if (!editing?.environment) return;
-                await upsert.mutateAsync({ ...editing, newVersion: newVersionMode });
+                await upsert.mutateAsync({ ...editing, environment: editing.environment, newVersion: newVersionMode });
                 setEditing(null);
                 setNewVersionMode(false);
               }}
