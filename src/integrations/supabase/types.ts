@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      deployment_blueprints: {
+        Row: {
+          backup_strategy: string | null
+          cicd_plan: string | null
+          created_at: string
+          created_by: string | null
+          database_plan: string | null
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          hosting_target: string | null
+          id: string
+          is_current: boolean
+          monitoring_plan: string | null
+          notes: string | null
+          rollback_strategy: string | null
+          secrets_plan: string | null
+          topology_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          backup_strategy?: string | null
+          cicd_plan?: string | null
+          created_at?: string
+          created_by?: string | null
+          database_plan?: string | null
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          hosting_target?: string | null
+          id?: string
+          is_current?: boolean
+          monitoring_plan?: string | null
+          notes?: string | null
+          rollback_strategy?: string | null
+          secrets_plan?: string | null
+          topology_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          backup_strategy?: string | null
+          cicd_plan?: string | null
+          created_at?: string
+          created_by?: string | null
+          database_plan?: string | null
+          environment?: Database["public"]["Enums"]["blueprint_env"]
+          hosting_target?: string | null
+          id?: string
+          is_current?: boolean
+          monitoring_plan?: string | null
+          notes?: string | null
+          rollback_strategy?: string | null
+          secrets_plan?: string | null
+          topology_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      deployment_events: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          failure_reason: string | null
+          id: string
+          kind: Database["public"]["Enums"]["deployment_event_kind"]
+          notes: string | null
+          occurred_at: string
+          service_id: string | null
+          status: Database["public"]["Enums"]["deployment_event_status"]
+          topology_id: string
+          triggered_by: string | null
+          version_tag: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          failure_reason?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["deployment_event_kind"]
+          notes?: string | null
+          occurred_at?: string
+          service_id?: string | null
+          status?: Database["public"]["Enums"]["deployment_event_status"]
+          topology_id: string
+          triggered_by?: string | null
+          version_tag?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          environment?: Database["public"]["Enums"]["blueprint_env"]
+          failure_reason?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["deployment_event_kind"]
+          notes?: string | null
+          occurred_at?: string
+          service_id?: string | null
+          status?: Database["public"]["Enums"]["deployment_event_status"]
+          topology_id?: string
+          triggered_by?: string | null
+          version_tag?: string | null
+        }
+        Relationships: []
+      }
       environments: {
         Row: {
           config_status: Database["public"]["Enums"]["readiness_status"]
@@ -127,6 +232,102 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      runbooks: {
+        Row: {
+          created_at: string
+          estimated_duration_minutes: number | null
+          id: string
+          kind: Database["public"]["Enums"]["runbook_kind"]
+          owner: string | null
+          rollback_steps: Json
+          service_id: string | null
+          steps: Json
+          summary: string | null
+          title: string
+          topology_id: string
+          updated_at: string
+          validation_steps: Json
+        }
+        Insert: {
+          created_at?: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          kind: Database["public"]["Enums"]["runbook_kind"]
+          owner?: string | null
+          rollback_steps?: Json
+          service_id?: string | null
+          steps?: Json
+          summary?: string | null
+          title: string
+          topology_id: string
+          updated_at?: string
+          validation_steps?: Json
+        }
+        Update: {
+          created_at?: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          kind?: Database["public"]["Enums"]["runbook_kind"]
+          owner?: string | null
+          rollback_steps?: Json
+          service_id?: string | null
+          steps?: Json
+          summary?: string | null
+          title?: string
+          topology_id?: string
+          updated_at?: string
+          validation_steps?: Json
+        }
+        Relationships: []
+      }
+      secrets_registry: {
+        Row: {
+          created_at: string
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          expires_at: string | null
+          id: string
+          last_rotated_at: string | null
+          notes: string | null
+          owner: string | null
+          rotation_interval_days: number | null
+          secret_name: string
+          service_id: string | null
+          state: Database["public"]["Enums"]["secret_state"]
+          topology_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          environment: Database["public"]["Enums"]["blueprint_env"]
+          expires_at?: string | null
+          id?: string
+          last_rotated_at?: string | null
+          notes?: string | null
+          owner?: string | null
+          rotation_interval_days?: number | null
+          secret_name: string
+          service_id?: string | null
+          state?: Database["public"]["Enums"]["secret_state"]
+          topology_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          environment?: Database["public"]["Enums"]["blueprint_env"]
+          expires_at?: string | null
+          id?: string
+          last_rotated_at?: string | null
+          notes?: string | null
+          owner?: string | null
+          rotation_interval_days?: number | null
+          secret_name?: string
+          service_id?: string | null
+          state?: Database["public"]["Enums"]["secret_state"]
+          topology_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -352,10 +553,21 @@ export type Database = {
       user_owns_topology: { Args: { _topology_id: string }; Returns: boolean }
     }
     Enums: {
+      blueprint_env: "development" | "staging" | "production"
       coverage_status: "covered" | "partial" | "missing" | "not_required"
       dependency_type: "sync" | "async" | "data" | "secret"
+      deployment_event_kind: "deploy" | "rollback" | "failure" | "hotfix"
+      deployment_event_status: "success" | "failed" | "in_progress" | "reverted"
       environment_kind: "local" | "development" | "staging" | "production"
       readiness_status: "ready" | "partial" | "blocked" | "missing"
+      runbook_kind:
+        | "deployment"
+        | "rollback"
+        | "outage"
+        | "incident"
+        | "secret_rotation"
+        | "backup_restore"
+      secret_state: "present" | "missing" | "expired" | "rotating"
       service_type:
         | "frontend"
         | "api"
@@ -496,10 +708,22 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      blueprint_env: ["development", "staging", "production"],
       coverage_status: ["covered", "partial", "missing", "not_required"],
       dependency_type: ["sync", "async", "data", "secret"],
+      deployment_event_kind: ["deploy", "rollback", "failure", "hotfix"],
+      deployment_event_status: ["success", "failed", "in_progress", "reverted"],
       environment_kind: ["local", "development", "staging", "production"],
       readiness_status: ["ready", "partial", "blocked", "missing"],
+      runbook_kind: [
+        "deployment",
+        "rollback",
+        "outage",
+        "incident",
+        "secret_rotation",
+        "backup_restore",
+      ],
+      secret_state: ["present", "missing", "expired", "rotating"],
       service_type: [
         "frontend",
         "api",
