@@ -259,7 +259,7 @@ export function useRunbooks(topologyId?: string) {
         .eq('topology_id', topologyId!)
         .order('updated_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Runbook[];
+      return (data ?? []) as unknown as Runbook[];
     },
   });
 }
