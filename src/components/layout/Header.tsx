@@ -41,10 +41,10 @@ const Header: React.FC = () => {
               <GitBranch className="w-5 h-5 text-primary-foreground" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-base font-bold leading-tight">Cloud Architect Deploy</h1>
-              <p className="text-[10px] text-muted-foreground leading-tight">Deployment command center</p>
+              <h1 className="text-base font-bold leading-tight">Valtaris Cloud</h1>
+              <p className="text-[10px] text-muted-foreground leading-tight">Architecture intelligence platform</p>
             </div>
-            <Badge variant="outline" className="text-[10px] ml-1 hidden sm:inline-flex">Phase 1</Badge>
+            <Badge variant="outline" className="text-[10px] ml-1 hidden sm:inline-flex">Phase 3</Badge>
           </div>
 
           {/* Right side */}
